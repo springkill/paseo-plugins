@@ -9,11 +9,15 @@
  *
  * 所以：
  *
- * 1. **调用期门控 —— 立即生效。** transformer 永远注册，但在 `transform()` 里
- *    读开关，关掉就返回 `undefined`，条目原样落回默认渲染。时间线卡片是用户
- *    最常看的一层，这层必须即时。
- * 2. **加载期门控 —— 下次重载生效。** 面板、命令面板项、composer pill、RPC
- *    handler 只能在注册时决定，关掉的就不注册。
+ * ⚠️ **transformer 不做开关判断。**
+ *
+ * 曾经在 `transform()` 里读客户端开关缓存，结果合并后时间线卡片在真实 app 里
+ * 全部退回裸文本，而所有离线检查（编译、eval、注册、直接调 transform）都是绿的。
+ * 卡片是这个插件最核心的东西，不值得为一个开关冒这个险 —— 恢复成合并前的
+ * 无条件形态。
+ *
+ * 开关仍然作用于 composer pill（`addClientSide` 里按开关增删）、面板内容
+ * 和 RPC handler。
  *
  * 设置相关的 RPC 与面板**永远注册** —— 否则全关之后就再也打不开设置了。
  */
@@ -98,7 +102,6 @@ export default function contribute(plugin: PluginContext) {
     id: "pi-todo-tool-card",
     query: { itemType: "tool_call" },
     transform({ item }) {
-      if (!isFeatureEnabled("todos")) return;
       const board = parseTodoTimelineItem(item);
       if (!board) return;
       return { items: [{ type: "plugin", kind: "pi-todo-board", version: 1, data: timelineData(board) }] };
@@ -109,7 +112,6 @@ export default function contribute(plugin: PluginContext) {
     id: "native-todo-card",
     query: { itemType: "todo" },
     transform({ item }) {
-      if (!isFeatureEnabled("todos")) return;
       const board = parseTodoTimelineItem(item);
       if (!board) return;
       return { items: [{ type: "plugin", kind: "pi-todo-board", version: 1, data: timelineData(board) }] };
@@ -127,7 +129,6 @@ export default function contribute(plugin: PluginContext) {
     id: "pi-subagent-card",
     query: { itemType: "tool_call" },
     transform({ item }) {
-      if (!isFeatureEnabled("subagents")) return;
       const call = parseSubagentTimelineItem(item);
       if (!call) return;
       return { items: [{ type: "plugin", kind: "pi-subagent-card", version: 1, data: timelineData(call) }] };
@@ -169,7 +170,6 @@ export default function contribute(plugin: PluginContext) {
     id: "pi-notice-card",
     query: { itemType: "assistant_message" },
     transform({ item }) {
-      if (!isFeatureEnabled("notices")) return;
       const notice = parsePiNoticeTimelineItem(item);
       if (!notice) return;
       return { items: [{ type: "plugin", kind: "pi-notice", version: 1, data: timelineData(notice) }] };
