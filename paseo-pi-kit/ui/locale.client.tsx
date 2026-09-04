@@ -78,7 +78,7 @@ export function useLocale(hostId: string): LocaleContext {
   const clientLocale = React.useMemo(() => detectClientLocale(), []);
   const getLocale = useRpc(localeRpc);
   const query = useQuery({
-    queryKey: ["pi-todos", "locale", hostId],
+    queryKey: ["pi-kit", "locale", hostId],
     queryFn: () => getLocale({ clientLocale }),
     staleTime: 60_000,
     retry: 0,
@@ -106,7 +106,7 @@ export function LanguagePicker({ ctx, hostId, theme }: {
   const mutate = useMutation({
     mutationFn: (preference: LocalePreference) => setLocale({ preference, clientLocale: ctx.clientLocale }),
     onSuccess(value) {
-      queryClient.setQueryData(["pi-todos", "locale", hostId], value);
+      queryClient.setQueryData(["pi-kit", "locale", hostId], value);
       // 共享设置变了，把所有跟语言相关的缓存都作废
       void queryClient.invalidateQueries();
     },

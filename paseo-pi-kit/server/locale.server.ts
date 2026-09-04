@@ -1,8 +1,8 @@
 /**
  * 共享语言设置的读写。
  *
- * 三个插件（paseo-rumen / paseo-pi-todos / paseo-provider-balances）读写
- * **同一个文件**，所以在任何一个里改语言，另外两个下次渲染就跟上。
+ * 本插件与 paseo-rumen 读写**同一个文件**，所以在任何一个里改语言，
+ * 另一个下次渲染就跟上。
  *
  * ```
  * $PASEO_HOME/plugin-locale.json      // { "locale": "auto" | "zh" | "en" }
@@ -47,7 +47,7 @@ export async function writeSharedLocale(locale: LocalePreference): Promise<void>
 // ── RPC handler ─────────────────────────────────────────────────────
 
 /** 本插件专用的强制开关。作用域比 `PASEO_PLUGIN_LANG` 更窄，所以优先级更高。 */
-const ENV_KEY = "PI_TODOS_LANG";
+const ENV_KEY = "PI_KIT_LANG";
 
 async function snapshot(clientLocale: string | undefined) {
   const preference = await readSharedLocale();

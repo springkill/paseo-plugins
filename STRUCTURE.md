@@ -1,6 +1,6 @@
 # 目录结构约定
 
-两个插件用同一套分层，与 [paseo-rumen](https://github.com/springkill/paseo-rumen) 一致：
+与 [paseo-rumen](https://github.com/springkill/paseo-rumen) 用同一套分层：
 
 ```
 index.ts       插件注册

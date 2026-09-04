@@ -1,4 +1,4 @@
-# Paseo Pi Todos
+# Paseo Pi Kit
 
 Paseo 原生 UI 插件，为 Pi 的 `todo` 和 `subagent` 提供任务进度卡、子代理卡片、Composer 状态与独立面板。
 
@@ -23,7 +23,7 @@ Paseo 原生 UI 插件，为 Pi 的 `todo` 和 `subagent` 提供任务进度卡�
 ## 安装
 
 ```bash
-paseo plugin install https://github.com/springkill/paseo-plugins:paseo-pi-todos
+paseo plugin install https://github.com/springkill/paseo-plugins:paseo-pi-kit
 ```
 
 ⚠️ Paseo 插件是**受信任、不沙箱**的：后端代码在你的机器上以你的身份运行。
@@ -56,11 +56,11 @@ pi-web-access / @narumitw/pi-goal）。对本机全部真实会话做过回归�
 ## 开发
 
 ```bash
-cd paseo-pi-todos
+cd paseo-pi-kit
 npm install
 npm run typecheck
 npm test
-paseo plugin reload paseo-pi-todos
+paseo plugin reload paseo-pi-kit
 ```
 
 首次安装：

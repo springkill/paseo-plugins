@@ -1,8 +1,32 @@
 import { defineRpc } from "@getpaseo/plugin/server";
 import { z } from "zod";
+import { FEATURES, type Feature } from "./features.shared";
 import { LOCALES } from "./locale.shared";
 
 export const LocaleSchema = z.enum(LOCALES);
+export const FeatureSchema = z.enum(FEATURES);
+export const FeatureFlagsSchema = z.object(
+  Object.fromEntries(FEATURES.map((f) => [f, z.boolean()])) as Record<Feature, z.ZodBoolean>,
+);
+
+/**
+ * 功能开关。
+ *
+ * `needsReload: true` 表示这个功能有加载期注册的东西（面板 / 命令项 / pill），
+ * 卡片已经立刻变了，但那些要下次重载才消失。插件**不会自己重载** ——
+ * 原因见 server/features.server.ts 顶部。
+ */
+export const featuresRpc = defineRpc({
+  name: "pi-kit.features",
+  input: z.object({}),
+  output: z.object({ flags: FeatureFlagsSchema }),
+});
+
+export const setFeatureRpc = defineRpc({
+  name: "pi-kit.set-feature",
+  input: z.object({ feature: FeatureSchema, enabled: z.boolean() }),
+  output: z.object({ flags: FeatureFlagsSchema, needsReload: z.boolean() }),
+});
 export const LocalePreferenceSchema = z.enum(["auto", ...LOCALES]);
 
 /**
@@ -10,7 +34,7 @@ export const LocalePreferenceSchema = z.enum(["auto", ...LOCALES]);
  * `$PASEO_HOME/plugin-locale.json`，不是本插件私有的状态。
  */
 export const localeRpc = defineRpc({
-  name: "pi-todos.locale",
+  name: "pi-kit.locale",
   input: z.object({ clientLocale: z.string().max(35).optional() }),
   output: z.object({
     preference: LocalePreferenceSchema,
@@ -20,7 +44,7 @@ export const localeRpc = defineRpc({
 });
 
 export const setLocaleRpc = defineRpc({
-  name: "pi-todos.set-locale",
+  name: "pi-kit.set-locale",
   input: z.object({
     preference: LocalePreferenceSchema,
     clientLocale: z.string().max(35).optional(),
@@ -172,7 +196,7 @@ export const TodoBoardSchema = z.object({
 });
 
 export const latestTodoRpc = defineRpc({
-  name: "pi-todos.latest",
+  name: "pi-kit.latest",
   input: z.object({ agentId: z.string().min(1).max(256) }),
   output: z.object({ board: TodoBoardSchema.nullable() }),
 });
@@ -210,7 +234,7 @@ export const SubagentCallSchema = z.object({
 });
 
 export const subagentCallsRpc = defineRpc({
-  name: "pi-subagents.list",
+  name: "pi-kit.subagents",
   input: z.object({ agentId: z.string().min(1).max(256) }),
   output: z.object({ calls: z.array(SubagentCallSchema).max(40) }),
 });
@@ -219,3 +243,59 @@ export type TodoTask = z.output<typeof TodoTaskSchema>;
 export type TodoBoard = z.output<typeof TodoBoardSchema>;
 export type SubagentCall = z.output<typeof SubagentCallSchema>;
 export type SubagentChild = z.output<typeof SubagentChildSchema>;
+
+// ── provider 用量 / 余额 ──────────────────────────────────────────
+
+const ToneSchema = z.enum(["default", "ok", "warning", "danger"]);
+
+const UsageWindowSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  usedPct: z.number().nullable().optional(),
+  remainingPct: z.number().nullable().optional(),
+  resetsAt: z.string().nullable().optional(),
+  runsOutAt: z.string().nullable().optional(),
+  shortfallPct: z.number().nullable().optional(),
+  tone: ToneSchema.optional(),
+});
+
+const BalanceSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  used: z.number().nullable().optional(),
+  remaining: z.number().nullable().optional(),
+  limit: z.number().nullable().optional(),
+  unit: z.enum(["tokens", "usd", "credits", "requests"]),
+  resetsAt: z.string().nullable().optional(),
+  tone: ToneSchema.optional(),
+});
+
+const DetailSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  value: z.string(),
+  tone: ToneSchema.optional(),
+});
+
+export const providerUsageRpc = defineRpc({
+  name: "pi-kit.provider-usage",
+  input: z.object({}),
+  output: z.object({
+    fetchedAt: z.string(),
+    providers: z.array(
+      z.object({
+        providerId: z.string(),
+        displayName: z.string(),
+        status: z.enum(["available", "unavailable", "error"]),
+        planLabel: z.string().nullable(),
+        sourceLabel: z.string().nullable().optional(),
+        fetchedAt: z.string().nullable().optional(),
+        nextRefreshAt: z.string().nullable().optional(),
+        windows: z.array(UsageWindowSchema),
+        balances: z.array(BalanceSchema).optional(),
+        details: z.array(DetailSchema).optional(),
+        error: z.string().nullable().optional(),
+      }),
+    ),
+  }),
+});

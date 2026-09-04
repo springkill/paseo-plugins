@@ -63,10 +63,10 @@ function ProviderCard({
         <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 7 }}>
           <Text style={{ color: theme.colors.foreground, fontSize: 17, fontWeight: "800" }}>{provider.displayName}</Text>
           {preferred ? (
-            <Text style={{ color: theme.colors.accent, fontSize: 11, fontWeight: "700" }}>{t.preferred}</Text>
+            <Text style={{ color: theme.colors.accent, fontSize: 11, fontWeight: "700" }}>{t.usage_preferred}</Text>
           ) : null}
         </View>
-        <Text style={muted}>{provider.planLabel || provider.sourceLabel || t.connected}</Text>
+        <Text style={muted}>{provider.planLabel || provider.sourceLabel || t.usage_connected}</Text>
       </View>
 
       {provider.windows.map((window) => {
@@ -106,7 +106,7 @@ function ProviderCard({
 
       {provider.error ? <Text style={{ color: theme.colors.statusDanger }}>{provider.error}</Text> : null}
       {provider.windows.length === 0 && (provider.balances ?? []).length === 0 && !provider.error ? (
-        <Text style={muted}>{t.no_windows}</Text>
+        <Text style={muted}>{t.usage_no_windows}</Text>
       ) : null}
     </View>
   );
@@ -153,14 +153,14 @@ export function ProviderBalancesCard({
     <View style={{ width: "100%", height: layout.compact ? 500 : 580, gap: 10 }}>
       <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
         <View style={{ gap: 2 }}>
-          <Text style={{ color: theme.colors.foreground, fontSize: 18, fontWeight: "800" }}>{t.modal_title}</Text>
+          <Text style={{ color: theme.colors.foreground, fontSize: 18, fontWeight: "800" }}>{t.usage_modal_title}</Text>
           <Text style={{ color: theme.colors.foregroundMuted, fontSize: 11 }}>
             Paseo native usage · 5 minute cache
           </Text>
         </View>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={t.action_refresh_a11y}
+          accessibilityLabel={t.usage_action_refresh_a11y}
           disabled={usageQuery.isFetching}
           onPress={() => void refresh()}
           style={({ pressed }) => ({
@@ -173,7 +173,7 @@ export function ProviderBalancesCard({
           })}
         >
           <Text style={{ color: theme.colors.foreground, fontWeight: "600" }}>
-            {usageQuery.isFetching ? t.action_refreshing : t.action_refresh}
+            {usageQuery.isFetching ? t.usage_action_refreshing : t.usage_action_refresh}
           </Text>
         </Pressable>
       </View>
@@ -182,7 +182,7 @@ export function ProviderBalancesCard({
         {usageQuery.isLoading ? (
           <View style={{ padding: 28, alignItems: "center", gap: 8 }}>
             <ActivityIndicator color={theme.colors.accent} />
-            <Text style={{ color: theme.colors.foregroundMuted }}>{t.loading}</Text>
+            <Text style={{ color: theme.colors.foregroundMuted }}>{t.usage_loading}</Text>
           </View>
         ) : null}
         {usageQuery.error ? (
@@ -199,7 +199,7 @@ export function ProviderBalancesCard({
           />
         ))}
         {!usageQuery.isLoading && visible.length === 0 ? (
-          <Text style={{ color: theme.colors.foregroundMuted }}>{t.empty}</Text>
+          <Text style={{ color: theme.colors.foregroundMuted }}>{t.usage_empty}</Text>
         ) : null}
 
         {unavailable.length ? (
@@ -210,14 +210,14 @@ export function ProviderBalancesCard({
               style={{ paddingVertical: 7 }}
             >
               <Text style={{ color: theme.colors.foregroundMuted, fontWeight: "700" }}>
-                {t.toggle_unavailable(showUnavailable, unavailable.length)}
+                {t.usage_toggle_unavailable(showUnavailable, unavailable.length)}
               </Text>
             </Pressable>
             {showUnavailable
               ? unavailable.map((provider) => (
                   <View key={provider.providerId} style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: theme.colors.foregroundMuted }}>
                     <Text style={{ color: theme.colors.foreground }}>{provider.displayName}</Text>
-                    <Text style={{ color: theme.colors.foregroundMuted }}>{t.unavailable}</Text>
+                    <Text style={{ color: theme.colors.foregroundMuted }}>{t.usage_unavailable}</Text>
                   </View>
                 ))
               : null}

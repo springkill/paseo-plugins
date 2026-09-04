@@ -167,12 +167,73 @@ const CATALOG = {
   notice_expand: { zh: "展开全文", en: "Show full text" },
   notice_collapse: { zh: "收起", en: "Collapse" },
 
+  // ── provider 用量 / 余额 ────────────────────────────────────────
+  usage_nav_open_usage: { zh: "打开 provider 用量", en: "Open provider usage" },
+  usage_modal_title: { zh: "Provider 用量", en: "Provider Usage" },
+
+  // ── 主视图 ──────────────────────────────────────────────────────
+  usage_loading: { zh: "读取 provider 额度中…", en: "Loading provider balances…" },
+  usage_empty: {
+    zh: "没有已认证的 provider 返回用量数据",
+    en: "No authenticated provider returned usage data",
+  },
+  usage_no_windows: {
+    zh: "provider 可用，但没有返回额度窗口或余额",
+    en: "Provider is reachable but returned no usage window or balance",
+  },
+  usage_connected: { zh: "已连接", en: "Connected" },
+  usage_preferred: { zh: "当前优先", en: "Preferred" },
+  usage_unavailable: { zh: "不可用", en: "Unavailable" },
+  usage_action_refresh: { zh: "刷新", en: "Refresh" },
+  usage_action_refreshing: { zh: "刷新中…", en: "Refreshing…" },
+  usage_action_refresh_a11y: { zh: "刷新 provider 用量", en: "Refresh provider usage" },
+  usage_toggle_unavailable: (show: boolean, n: number) => ({
+    zh: `${show ? "隐藏" : "显示"}不可用的 provider（${n}）`,
+    en: `${show ? "Hide" : "Show"} unavailable providers (${n})`,
+  }),
+
+  // ── 功能开关 ────────────────────────────────────────────────────
+  settings_panel: { zh: "Pi Kit 设置", en: "Pi Kit Settings" },
+  settings_open: { zh: "打开 Pi Kit 设置", en: "Open Pi Kit settings" },
+  settings_features: { zh: "功能", en: "Features" },
+  settings_features_hint: {
+    zh: "关掉后时间线卡片立即消失；面板、命令面板项与 composer pill 要重载插件才消失。",
+    en: "Disabling hides timeline cards immediately; panels, command items and composer pills go away after a reload.",
+  },
+  // ⚠️ 别删：这句是在解释「为什么我关了但菜单还在」
+  settings_needs_reload: {
+    zh: "时间线卡片已经生效。面板与 composer pill 是加载时注册的，重载后才消失：",
+    en: "Timeline cards already changed. Panels and composer pills are registered at load time; reload to drop them:",
+  },
+  feature_todos: { zh: "任务列表", en: "Todo list" },
+  feature_todos_desc: {
+    zh: "把 Pi 的 todo 工具调用和 Paseo 原生 todo 换成进度卡，并在 composer 显示完成数",
+    en: "Replaces Pi todo tool calls and native todo items with progress cards, plus a composer pill",
+  },
+  feature_subagents: { zh: "Subagents", en: "Subagents" },
+  feature_subagents_desc: {
+    zh: "subagent 调用卡片、实时子任务状态、独立面板与 composer pill",
+    en: "Subagent call cards, live child status, a dedicated panel and a composer pill",
+  },
+  feature_notices: { zh: "Pi 通知卡片", en: "Pi notice cards" },
+  feature_notices_desc: {
+    zh: "把后台任务、workflow、subagent 督导等通知从裸文本还原成结构化卡片",
+    en: "Turns background task, workflow and subagent notices from raw text into structured cards",
+  },
+  feature_balances: { zh: "Provider 用量", en: "Provider usage" },
+  feature_balances_desc: {
+    zh: "在 composer 显示各 provider 的额度窗口与余额",
+    en: "Shows provider quota windows and balances in the composer",
+  },
+
+  // ── 语言 ────────────────────────────────────────────────────────
+
   // ── 语言 ────────────────────────────────────────────────────────
   settings_language: { zh: "界面语言", en: "Interface language" },
   settings_language_auto: { zh: "自动", en: "Auto" },
   settings_language_shared: {
-    zh: "三个 Paseo 插件共用这一个设置",
-    en: "Shared by all three Paseo plugins",
+    zh: "本插件与 Rumen 共用这一个设置",
+    en: "Shared with the Rumen plugin",
   },
   settings_language_locked: {
     zh: "环境变量已锁定语言，此处设置不生效",

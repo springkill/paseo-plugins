@@ -11,20 +11,16 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        plugin: [paseo-pi-todos, paseo-provider-balances]
     defaults:
       run:
-        working-directory: ${{ matrix.plugin }}
+        working-directory: paseo-pi-kit
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: ${{ matrix.plugin }}/package-lock.json
+          cache-dependency-path: paseo-pi-kit/package-lock.json
       # ⭐ 缓存 node_modules 本身，不只是 ~/.npm。
       # setup-node 的 `cache: npm` 只存下载的 tarball；npm ci 每次照样把
       # 300+ 个包删掉重解压 —— react-native 那种几万个小文件，解压才是瓶颈。
@@ -34,8 +30,8 @@ jobs:
         id: modules
         uses: actions/cache@v4
         with:
-          path: ${{ matrix.plugin }}/node_modules
-          key: nm-${{ runner.os }}-node22-${{ hashFiles(format('{0}/package-lock.json', matrix.plugin)) }}
+          path: paseo-pi-kit/node_modules
+          key: nm-${{ runner.os }}-node22-${{ hashFiles('paseo-pi-kit/package-lock.json') }}
       - run: npm ci
         if: steps.modules.outputs.cache-hit != 'true'
       - run: npm run typecheck

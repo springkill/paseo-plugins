@@ -1,4 +1,4 @@
 {
-  "id": "paseo-provider-balances",
+  "id": "paseo-pi-kit",
   "build": [["npm", "install", "--no-audit", "--no-fund", "--loglevel=error"]]
 }

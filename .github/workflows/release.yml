@@ -8,20 +8,16 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        plugin: [paseo-pi-todos, paseo-provider-balances]
     defaults:
       run:
-        working-directory: ${{ matrix.plugin }}
+        working-directory: paseo-pi-kit
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: ${{ matrix.plugin }}/package-lock.json
+          cache-dependency-path: paseo-pi-kit/package-lock.json
       # ⭐ 缓存 node_modules 本身，不只是 ~/.npm。
       # setup-node 的 `cache: npm` 只存下载的 tarball；npm ci 每次照样把
       # 300+ 个包删掉重解压 —— react-native 那种几万个小文件，解压才是瓶颈。
@@ -31,8 +27,8 @@ jobs:
         id: modules
         uses: actions/cache@v4
         with:
-          path: ${{ matrix.plugin }}/node_modules
-          key: nm-${{ runner.os }}-node22-${{ hashFiles(format('{0}/package-lock.json', matrix.plugin)) }}
+          path: paseo-pi-kit/node_modules
+          key: nm-${{ runner.os }}-node22-${{ hashFiles('paseo-pi-kit/package-lock.json') }}
       - run: npm ci
         if: steps.modules.outputs.cache-hit != 'true'
       - run: npm run typecheck
@@ -55,11 +51,11 @@ jobs:
           # 插件是 git 安装的，不发布构建产物 —— 用户装的就是仓库本身。
           # 所以 release 的价值全在「这个 tag 怎么装」。
           cat > notes.md <<EOF
-          两个 Paseo 插件。装哪个装哪个，互不依赖。
+          Pi Kit —— 四个功能装在一个插件里，各自可在「Pi Kit 设置」面板里开关：
+          任务列表 / Subagents / Pi 通知卡片 / Provider 用量。
 
           \`\`\`bash
-          paseo plugin install https://github.com/${{ github.repository }}:paseo-pi-todos --ref $TAG
-          paseo plugin install https://github.com/${{ github.repository }}:paseo-provider-balances --ref $TAG
+          paseo plugin install https://github.com/${{ github.repository }}:paseo-pi-kit --ref $TAG
           \`\`\`
 
           省掉 \`--ref\` 就跟着 main 走。

@@ -13,7 +13,7 @@ import { providerUsageRpc } from "../domain/contracts.shared";
 import { translator } from "../domain/i18n.shared";
 import { localeFromTag } from "../domain/locale.shared";
 import { detectClientLocale, useLocale } from "./locale.client";
-import { ProviderBalancesCard } from "./main.client";
+import { ProviderBalancesCard } from "./balances-main.client";
 
 const PASEO_USAGE_STALE_TIME_MS = 300_000;
 const cardOpeners = new Map<string, () => void>();
@@ -70,7 +70,7 @@ function ProviderUsagePill(props: PluginComposerPillProps) {
       <View style={{ alignItems: "center", justifyContent: "center" }}>
         <Icon name="Gauge" size={15} color={color} />
       </View>
-      <Modal title={t.modal_title} open={open} onOpenChange={setOpen}>
+      <Modal title={t.usage_modal_title} open={open} onOpenChange={setOpen}>
         <Modal.Content>
           <View style={{ padding: props.layout.compact ? 10 : 14 }}>
             <ProviderBalancesCard
@@ -113,7 +113,7 @@ export function contributeProviderUsagePills(client: PluginClientContext) {
       workspaceId,
       remove: client.addComposerPill({
         id: "provider-usage",
-        title: t.nav_open_usage,
+        title: t.usage_nav_open_usage,
         workspaceId,
         agentId,
         Component: ProviderUsagePill,
