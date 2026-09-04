@@ -14,6 +14,7 @@ import { latestTodoRpc, type TodoBoard, type TodoTask } from "../domain/contract
 import { translator, type Translator } from "../domain/i18n.shared";
 import { localeFromTag } from "../domain/locale.shared";
 import { detectClientLocale, LanguagePicker, useLocale } from "./locale.client";
+import { CardHeader, CardShell, CardTitle, FONT, LINE, ProgressBar, RADIUS, SPACE } from "./tokens.client";
 
 function statusMeta(status: TodoTask["status"], theme: PluginTheme, t: Translator) {
   if (status === "completed") return { icon: "CheckCircle2", label: t.status_completed, color: theme.colors.statusSuccess };
@@ -67,10 +68,10 @@ function BoardView({
         padding: compact ? 10 : 12,
         borderWidth: 1,
         borderColor: theme.colors.border,
-        borderRadius: 12,
+        borderRadius: RADIUS.card,
         backgroundColor: theme.colors.surface1,
       },
-      muted: { color: theme.colors.foregroundMuted, fontSize: 12 },
+      muted: { color: theme.colors.foregroundMuted, fontSize: FONT.body },
     }),
     [compact, theme],
   );
@@ -80,18 +81,16 @@ function BoardView({
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 7, flexShrink: 1 }}>
           <Icon name="ListTodo" size={17} color={theme.colors.accent} />
-          <Text style={{ color: theme.colors.foreground, fontWeight: "800", fontSize: 15 }}>{t.todo_title}</Text>
+          <Text style={{ color: theme.colors.foreground, fontWeight: "800", fontSize: FONT.cardTitle }}>{t.todo_title}</Text>
         </View>
         <Text style={{ color: theme.colors.foreground, fontWeight: "800" }}>{completed}/{liveTasks.length}</Text>
       </View>
 
-      <View style={{ height: 7, borderRadius: 4, backgroundColor: theme.colors.surface2, overflow: "hidden" }}>
-        <View style={{ width: `${percent}%`, height: 7, backgroundColor: theme.colors.accent, borderRadius: 4 }} />
-      </View>
+      <ProgressBar percent={percent} theme={theme} />
 
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
         <Text style={styles.muted}>{actionLabel(board, t)}</Text>
-        <Text style={{ color: running.length ? theme.colors.accent : theme.colors.foregroundMuted, fontSize: 12 }}>{t.count_running(running.length)}</Text>
+        <Text style={{ color: running.length ? theme.colors.accent : theme.colors.foregroundMuted, fontSize: FONT.body }}>{t.count_running(running.length)}</Text>
         <Text style={styles.muted}>{t.count_pending(pending.length)}</Text>
         <Text style={styles.muted}>{percent}%</Text>
       </View>
@@ -107,7 +106,7 @@ function BoardView({
               alignItems: "flex-start",
               gap: 8,
               padding: 9,
-              borderRadius: 9,
+              borderRadius: RADIUS.row,
               borderWidth: task.status === "in_progress" ? 1 : 0,
               borderColor: task.status === "in_progress" ? theme.colors.accent : theme.colors.border,
               backgroundColor: task.status === "in_progress" ? theme.colors.surface2 : theme.colors.surface0,
@@ -120,10 +119,10 @@ function BoardView({
                 <Text style={{ color: theme.colors.foreground, fontWeight: task.status === "in_progress" ? "700" : "600", flex: 1 }}>
                   #{task.id} {task.subject}
                 </Text>
-                <Text style={{ color: meta.color, fontSize: 11, fontWeight: "700" }}>{meta.label}</Text>
+                <Text style={{ color: meta.color, fontSize: FONT.meta, fontWeight: "700" }}>{meta.label}</Text>
               </View>
               {task.status === "in_progress" && task.activeForm ? (
-                <Text style={{ color: theme.colors.accent, fontSize: 12 }}>{task.activeForm}</Text>
+                <Text style={{ color: theme.colors.accent, fontSize: FONT.body }}>{task.activeForm}</Text>
               ) : null}
               {(expanded || task.status === "in_progress") && task.description ? (
                 <Text style={styles.muted}>{task.description}</Text>

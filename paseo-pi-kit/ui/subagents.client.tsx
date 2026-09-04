@@ -15,6 +15,7 @@ import { subagentCallsRpc, type SubagentCall, type SubagentChild } from "../doma
 import { translator, type Translator } from "../domain/i18n.shared";
 import { localeFromTag } from "../domain/locale.shared";
 import { detectClientLocale, LanguagePicker, useLocale } from "./locale.client";
+import { FONT, LINE, RADIUS, SPACE } from "./tokens.client";
 
 function statusMeta(
   status: SubagentCall["status"] | SubagentChild["status"],
@@ -51,21 +52,21 @@ function ChildRow({ child, theme, expanded, t }: { child: SubagentChild; theme: 
     child.costUsd === undefined ? null : `$${child.costUsd.toFixed(3)}`,
   ].filter(Boolean);
   return (
-    <View style={{ gap: 6, padding: 10, borderRadius: 9, backgroundColor: theme.colors.surface0, borderWidth: 1, borderColor: theme.colors.border }}>
+    <View style={{ gap: 6, padding: SPACE.row, borderRadius: RADIUS.row, backgroundColor: theme.colors.surface0, borderWidth: 1, borderColor: theme.colors.border }}>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 7, flex: 1 }}>
           <Icon name="Bot" size={15} color={meta.color} />
           <Text style={{ color: theme.colors.foreground, fontWeight: "700", flex: 1 }}>#{child.index + 1} {child.agent}</Text>
         </View>
-        <Text style={{ color: meta.color, fontSize: 11, fontWeight: "800" }}>{meta.label}</Text>
+        <Text style={{ color: meta.color, fontSize: FONT.meta, fontWeight: "800" }}>{meta.label}</Text>
       </View>
-      {facts.length ? <Text style={{ color: theme.colors.foregroundMuted, fontSize: 11 }}>{facts.join(" · ")}</Text> : null}
-      {child.acceptance ? <Text style={{ color: theme.colors.foregroundMuted, fontSize: 11 }}>Acceptance: {child.acceptance}</Text> : null}
+      {facts.length ? <Text style={{ color: theme.colors.foregroundMuted, fontSize: FONT.meta }}>{facts.join(" · ")}</Text> : null}
+      {child.acceptance ? <Text style={{ color: theme.colors.foregroundMuted, fontSize: FONT.meta }}>Acceptance: {child.acceptance}</Text> : null}
       {expanded && child.finalOutput ? (
-        <Text selectable style={{ color: theme.colors.foreground, fontFamily: "monospace", fontSize: 12 }}>{child.finalOutput}</Text>
+        <Text selectable style={{ color: theme.colors.foreground, fontFamily: "monospace", fontSize: FONT.body }}>{child.finalOutput}</Text>
       ) : null}
       {expanded && child.residualRisks?.length ? (
-        <Text style={{ color: theme.colors.statusWarning, fontSize: 12 }}>残余风险：{child.residualRisks.join("；")}</Text>
+        <Text style={{ color: theme.colors.statusWarning, fontSize: FONT.body }}>残余风险：{child.residualRisks.join("；")}</Text>
       ) : null}
     </View>
   );
@@ -87,27 +88,27 @@ export function SubagentCardView({
   const [expanded, setExpanded] = useState(initiallyExpanded);
   const meta = statusMeta(call.status, theme, t);
   return (
-    <View style={{ gap: compact ? 8 : 10, padding: compact ? 10 : 12, borderRadius: 12, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surface1 }}>
+    <View style={{ gap: compact ? SPACE.gap : SPACE.row, padding: compact ? SPACE.row : SPACE.card, borderRadius: RADIUS.card, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surface1 }}>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 7, flex: 1 }}>
           {call.status === "running" ? <ActivityIndicator size="small" color={meta.color} /> : <Icon name={meta.icon} size={17} color={meta.color} />}
-          <Text style={{ color: theme.colors.foreground, fontWeight: "800", fontSize: 15, flex: 1 }}>
+          <Text style={{ color: theme.colors.foreground, fontWeight: "800", fontSize: FONT.cardTitle, flex: 1 }}>
             Pi Subagent · {call.subAgentType ?? call.mode ?? "workflow"}
           </Text>
         </View>
-        <Text style={{ color: meta.color, fontWeight: "800", fontSize: 11 }}>{meta.label}</Text>
+        <Text style={{ color: meta.color, fontWeight: "800", fontSize: FONT.meta }}>{meta.label}</Text>
       </View>
 
       {call.description ? <Text style={{ color: theme.colors.foreground }}>{call.description}</Text> : null}
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-        {call.children.length ? <Text style={{ color: theme.colors.foregroundMuted, fontSize: 11 }}>{call.children.length} children</Text> : null}
-        {call.runId ? <Text style={{ color: theme.colors.foregroundMuted, fontSize: 11 }}>Run {call.runId.slice(0, 8)}</Text> : null}
-        {call.missionId ? <Text style={{ color: theme.colors.foregroundMuted, fontSize: 11 }}>Mission {call.missionId.slice(0, 8)} · {call.missionStatus ?? "—"}</Text> : null}
+        {call.children.length ? <Text style={{ color: theme.colors.foregroundMuted, fontSize: FONT.meta }}>{call.children.length} children</Text> : null}
+        {call.runId ? <Text style={{ color: theme.colors.foregroundMuted, fontSize: FONT.meta }}>Run {call.runId.slice(0, 8)}</Text> : null}
+        {call.missionId ? <Text style={{ color: theme.colors.foregroundMuted, fontSize: FONT.meta }}>Mission {call.missionId.slice(0, 8)} · {call.missionStatus ?? "—"}</Text> : null}
       </View>
 
       {call.children.map((child) => <ChildRow t={t} key={`${call.callId}-${child.index}`} child={child} theme={theme} expanded={expanded} />)}
       {!call.children.length ? (
-        <Text selectable style={{ color: theme.colors.foregroundMuted, fontFamily: "monospace", fontSize: 12 }}>{call.log || (call.status === "running" ? t.subagents_starting : t.subagents_no_output)}</Text>
+        <Text selectable style={{ color: theme.colors.foregroundMuted, fontFamily: "monospace", fontSize: FONT.body }}>{call.log || (call.status === "running" ? t.subagents_starting : t.subagents_no_output)}</Text>
       ) : null}
 
       {call.children.some((child) => child.finalOutput || child.residualRisks?.length) ? (
@@ -165,7 +166,7 @@ export function PiSubagentsPanel({ theme, host, layout, agentId }: PluginAgentPa
     <View style={{ flex: 1, backgroundColor: theme.colors.surface0, padding: layout.compact ? 12 : 18, gap: 12 }}>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
         <View style={{ gap: 2 }}>
-          <Text style={{ color: theme.colors.foreground, fontSize: 20, fontWeight: "800" }}>{t.panel_subagents}</Text>
+          <Text style={{ color: theme.colors.foreground, fontSize: FONT.panelTitle, fontWeight: "800" }}>{t.panel_subagents}</Text>
           <Text style={{ color: theme.colors.foregroundMuted }}>{t.subagents_summary(counts.active, counts.total, query.data?.calls.length ?? 0)}</Text>
         </View>
         {query.isFetching ? <ActivityIndicator color={theme.colors.accent} /> : null}
@@ -211,7 +212,7 @@ function SubagentStatusPill({ theme, host, layout, agentId }: PluginComposerPill
       <Modal title={`Pi Subagents · ${agent?.title ?? agentId.slice(0, 8)}`} open={open} onOpenChange={setOpen}>
         <Modal.Content>
           <ScrollView style={{ maxHeight: layout.compact ? 540 : 650 }} contentContainerStyle={{ gap: 10, padding: 12 }}>
-            <Text style={{ color: theme.colors.foregroundMuted, fontSize: 11 }}>{t.subagents_scoped_to(agentId)}</Text>
+            <Text style={{ color: theme.colors.foregroundMuted, fontSize: FONT.meta }}>{t.subagents_scoped_to(agentId)}</Text>
             {query.isFetching && !query.data ? <ActivityIndicator color={theme.colors.accent} /> : null}
             {query.error ? <Text style={{ color: theme.colors.statusDanger }}>{query.error instanceof Error ? query.error.message : String(query.error)}</Text> : null}
             {query.data?.calls.map((call) => <SubagentCardView key={call.callId} call={call} theme={theme} compact={layout.compact} t={t} />)}

@@ -7,16 +7,11 @@ import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-nati
 import { providerUsageRpc } from "../domain/contracts.shared";
 import type { Translator } from "../domain/i18n.shared";
 import { LanguagePicker, useLocale } from "./locale.client";
+import { FONT, LINE, ProgressBar, RADIUS, toneColor, type Tone } from "./tokens.client";
 
 const PASEO_USAGE_STALE_TIME_MS = 300_000;
 type Provider = ZodOutput<typeof providerUsageRpc.output>["providers"][number];
 type Theme = PluginTheme;
-
-function toneColor(theme: Theme, tone: string | undefined): string {
-  if (tone === "danger") return theme.colors.statusDanger;
-  if (tone === "warning") return theme.colors.foregroundMuted;
-  return theme.colors.accent;
-}
 
 function formatReset(value: string | null | undefined): string {
   if (!value) return "";
@@ -56,14 +51,14 @@ function ProviderCard({
         padding: 12,
         borderWidth: preferred ? 2 : 1,
         borderColor: preferred ? theme.colors.accent : theme.colors.foregroundMuted,
-        borderRadius: 10,
+        borderRadius: RADIUS.card,
       }}
     >
       <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
         <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 7 }}>
-          <Text style={{ color: theme.colors.foreground, fontSize: 17, fontWeight: "800" }}>{provider.displayName}</Text>
+          <Text style={{ color: theme.colors.foreground, fontSize: FONT.cardTitle, fontWeight: "800" }}>{provider.displayName}</Text>
           {preferred ? (
-            <Text style={{ color: theme.colors.accent, fontSize: 11, fontWeight: "700" }}>{t.usage_preferred}</Text>
+            <Text style={{ color: theme.colors.accent, fontSize: FONT.meta, fontWeight: "700" }}>{t.usage_preferred}</Text>
           ) : null}
         </View>
         <Text style={muted}>{provider.planLabel || provider.sourceLabel || t.usage_connected}</Text>
@@ -75,15 +70,13 @@ function ProviderCard({
           <View key={window.id} style={{ gap: 5 }}>
             <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8 }}>
               <Text style={{ color: theme.colors.foreground, fontWeight: "600" }}>{window.label}</Text>
-              <Text style={{ color: toneColor(theme, window.tone), fontWeight: "700" }}>
+              <Text style={{ color: toneColor(theme, window.tone as Tone | undefined), fontWeight: "700" }}>
                 {window.remainingPct === null || window.remainingPct === undefined ? `${Math.round(used)}% used` : `${Math.round(window.remainingPct)}% left`}
               </Text>
             </View>
-            <View style={{ height: 7, borderRadius: 4, backgroundColor: theme.colors.foregroundMuted, overflow: "hidden" }}>
-              <View style={{ height: 7, width: `${used}%`, backgroundColor: toneColor(theme, window.tone) }} />
-            </View>
-            {window.resetsAt ? <Text style={[muted, { fontSize: 11 }]}>Resets {formatReset(window.resetsAt)}</Text> : null}
-            {window.runsOutAt ? <Text style={{ color: theme.colors.statusDanger, fontSize: 11 }}>Runs out {formatReset(window.runsOutAt)}</Text> : null}
+            <ProgressBar percent={used} theme={theme} tone={window.tone} />
+            {window.resetsAt ? <Text style={[muted, { fontSize: FONT.meta }]}>Resets {formatReset(window.resetsAt)}</Text> : null}
+            {window.runsOutAt ? <Text style={{ color: theme.colors.statusDanger, fontSize: FONT.meta }}>Runs out {formatReset(window.runsOutAt)}</Text> : null}
           </View>
         );
       })}
@@ -91,7 +84,7 @@ function ProviderCard({
       {(provider.balances ?? []).map((balance) => (
         <View key={balance.id} style={{ flexDirection: "row", justifyContent: "space-between", gap: 8 }}>
           <Text style={muted}>{balance.label}</Text>
-          <Text style={{ color: toneColor(theme, balance.tone), fontWeight: "700" }}>
+          <Text style={{ color: toneColor(theme, balance.tone as Tone | undefined), fontWeight: "700" }}>
             {formatBalance(balance.remaining, balance.unit)} remaining
           </Text>
         </View>
@@ -100,7 +93,7 @@ function ProviderCard({
       {(provider.details ?? []).map((detail) => (
         <View key={detail.id} style={{ flexDirection: "row", justifyContent: "space-between", gap: 8 }}>
           <Text style={muted}>{detail.label}</Text>
-          <Text style={{ color: toneColor(theme, detail.tone) }}>{detail.value}</Text>
+          <Text style={{ color: toneColor(theme, detail.tone as Tone | undefined) }}>{detail.value}</Text>
         </View>
       ))}
 
@@ -153,8 +146,8 @@ export function ProviderBalancesCard({
     <View style={{ width: "100%", height: layout.compact ? 500 : 580, gap: 10 }}>
       <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
         <View style={{ gap: 2 }}>
-          <Text style={{ color: theme.colors.foreground, fontSize: 18, fontWeight: "800" }}>{t.usage_modal_title}</Text>
-          <Text style={{ color: theme.colors.foregroundMuted, fontSize: 11 }}>
+          <Text style={{ color: theme.colors.foreground, fontSize: FONT.panelTitle, fontWeight: "800" }}>{t.usage_modal_title}</Text>
+          <Text style={{ color: theme.colors.foregroundMuted, fontSize: FONT.meta }}>
             Paseo native usage · 5 minute cache
           </Text>
         </View>
@@ -166,7 +159,7 @@ export function ProviderBalancesCard({
           style={({ pressed }) => ({
             borderWidth: 1,
             borderColor: theme.colors.foregroundMuted,
-            borderRadius: 8,
+            borderRadius: RADIUS.inner,
             paddingHorizontal: 11,
             paddingVertical: 8,
             opacity: usageQuery.isFetching ? 0.45 : pressed ? 0.7 : 1,
@@ -226,7 +219,7 @@ export function ProviderBalancesCard({
       </ScrollView>
 
       {usageQuery.data?.fetchedAt ? (
-        <Text style={{ color: theme.colors.foregroundMuted, fontSize: 10 }}>
+        <Text style={{ color: theme.colors.foregroundMuted, fontSize: FONT.chip }}>
           Fetched {formatReset(usageQuery.data.fetchedAt)}
         </Text>
       ) : null}

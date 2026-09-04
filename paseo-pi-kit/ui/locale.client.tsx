@@ -12,6 +12,7 @@ import { NativeModules, Pressable, Text, View } from "react-native";
 import { localeRpc, setLocaleRpc } from "../domain/contracts.shared";
 import { translator, type Translator } from "../domain/i18n.shared";
 import { LOCALE_NATIVE_NAME, LOCALES, type Locale, type LocalePreference } from "../domain/locale.shared";
+import { FONT, LINE, RADIUS } from "./tokens.client";
 
 /**
  * 客户端自己是什么语言 —— **对齐 Paseo 自己的取法**。
@@ -120,8 +121,8 @@ export function LanguagePicker({ ctx, hostId, theme }: {
   return (
     <View style={{ gap: 5, paddingTop: 10, borderTopWidth: 1, borderTopColor: theme.colors.border }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        <Text style={{ color: theme.colors.foregroundMuted, fontSize: 11 }}>{ctx.t.settings_language}</Text>
-        <View style={{ flexDirection: "row", borderRadius: 7, borderWidth: 1, borderColor: theme.colors.border, overflow: "hidden" }}>
+        <Text style={{ color: theme.colors.foregroundMuted, fontSize: FONT.meta }}>{ctx.t.settings_language}</Text>
+        <View style={{ flexDirection: "row", borderRadius: RADIUS.chip, borderWidth: 1, borderColor: theme.colors.border, overflow: "hidden" }}>
           {options.map((option, index) => {
             const selected = ctx.preference === option.id;
             return (
@@ -140,7 +141,7 @@ export function LanguagePicker({ ctx, hostId, theme }: {
                   opacity: ctx.lockedByEnv ? 0.5 : 1,
                 }}
               >
-                <Text style={{ color: selected ? theme.colors.accentForeground : theme.colors.foreground, fontSize: 11, fontWeight: "600" }}>
+                <Text style={{ color: selected ? theme.colors.accentForeground : theme.colors.foreground, fontSize: FONT.meta, fontWeight: "600" }}>
                   {option.label}
                 </Text>
               </Pressable>
@@ -148,7 +149,7 @@ export function LanguagePicker({ ctx, hostId, theme }: {
           })}
         </View>
       </View>
-      <Text style={{ color: theme.colors.foregroundMuted, fontSize: 10, lineHeight: 14 }}>
+      <Text style={{ color: theme.colors.foregroundMuted, fontSize: FONT.chip, lineHeight: LINE.meta }}>
         {ctx.lockedByEnv ? ctx.t.settings_language_locked : ctx.t.settings_language_shared}
       </Text>
     </View>

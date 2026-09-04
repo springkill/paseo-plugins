@@ -28,6 +28,7 @@ import { Pressable, Text, View } from "react-native";
 import type { PiChildOutput, PiCompletionEntry, PiNotice } from "../domain/contracts.shared";
 import type { Translator } from "../domain/i18n.shared";
 import { useLocale } from "./locale.client";
+import { CardHeader, CardShell, CardTitle, Chip, FONT, LINE, RADIUS, SPACE } from "./tokens.client";
 
 /** 正文超过这个长度就折起来 —— 子任务输出动辄几千字。 */
 const COLLAPSE_OVER = 320;
@@ -107,22 +108,9 @@ function statusLabel(notice: PiNotice, t: Translator): string | null {
   }
 }
 
-function Chip({ text, theme, tone }: { text: string; theme: PluginTheme; tone?: "warning" | "danger" }) {
-  const color = tone === "danger"
-    ? theme.colors.statusDanger
-    : tone === "warning"
-      ? theme.colors.statusWarning
-      : theme.colors.foregroundMuted;
-  return (
-    <View style={{ paddingHorizontal: 6, paddingVertical: 1, borderRadius: 5, borderWidth: 1, borderColor: color }}>
-      <Text style={{ color, fontSize: 10, fontWeight: "700" }}>{text}</Text>
-    </View>
-  );
-}
-
 function Mono({ text, theme }: { text: string; theme: PluginTheme }) {
   return (
-    <Text selectable numberOfLines={1} style={{ color: theme.colors.foregroundMuted, fontFamily: "monospace", fontSize: 10 }}>
+    <Text selectable numberOfLines={1} style={{ color: theme.colors.foregroundMuted, fontFamily: "monospace", fontSize: FONT.chip }}>
       {text}
     </Text>
   );
@@ -130,7 +118,7 @@ function Mono({ text, theme }: { text: string; theme: PluginTheme }) {
 
 function Labelled({ label, value, theme }: { label: string; value: string; theme: PluginTheme }) {
   return (
-    <Text style={{ color: theme.colors.foregroundMuted, fontSize: 12, lineHeight: 17 }}>
+    <Text style={{ color: theme.colors.foregroundMuted, fontSize: FONT.body, lineHeight: LINE.body }}>
       {label}: {value}
     </Text>
   );
@@ -156,7 +144,7 @@ function JsonNode({ label, value, theme, depth }: {
 }) {
   const [open, setOpen] = useState(depth < 1);
   const key = label ? (
-    <Text style={{ color: theme.colors.foregroundMuted, fontSize: 11, fontWeight: "700" }}>{label}</Text>
+    <Text style={{ color: theme.colors.foregroundMuted, fontSize: FONT.meta, fontWeight: "700" }}>{label}</Text>
   ) : null;
 
   if (value === null || typeof value !== "object") {
@@ -164,7 +152,7 @@ function JsonNode({ label, value, theme, depth }: {
     return (
       <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap", alignItems: "flex-start" }}>
         {key}
-        <Text selectable style={{ color: theme.colors.foreground, fontSize: 12, lineHeight: 17, flex: 1 }}>
+        <Text selectable style={{ color: theme.colors.foreground, fontSize: FONT.body, lineHeight: LINE.body, flex: 1 }}>
           {short(text ?? "null", 400)}
         </Text>
       </View>
@@ -178,7 +166,7 @@ function JsonNode({ label, value, theme, depth }: {
     return (
       <View style={{ flexDirection: "row", gap: 6 }}>
         {key}
-        <Text style={{ color: theme.colors.foregroundMuted, fontSize: 11 }}>
+        <Text style={{ color: theme.colors.foregroundMuted, fontSize: FONT.meta }}>
           {Array.isArray(value) ? "[]" : "{}"}
         </Text>
       </View>
@@ -191,7 +179,7 @@ function JsonNode({ label, value, theme, depth }: {
         <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
           <Icon name={open ? "ChevronDown" : "ChevronRight"} size={12} color={theme.colors.foregroundMuted} />
           {key}
-          <Text style={{ color: theme.colors.foregroundMuted, fontSize: 10 }}>
+          <Text style={{ color: theme.colors.foregroundMuted, fontSize: FONT.chip }}>
             {Array.isArray(value) ? `${entries.length} 项` : `${entries.length}`}
           </Text>
         </View>
@@ -218,25 +206,25 @@ function ChildOutput({ child, theme, t }: { child: PiChildOutput; theme: PluginT
   return (
     <View style={{ gap: 3, paddingLeft: 8, borderLeftWidth: 2, borderLeftColor: failed ? theme.colors.statusDanger : theme.colors.border }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-        <Text style={{ color: theme.colors.foreground, fontSize: 12, fontWeight: "700" }}>
+        <Text style={{ color: theme.colors.foreground, fontSize: FONT.rowTitle, fontWeight: "700" }}>
           {child.key ?? child.runId?.slice(0, 8) ?? "—"}
         </Text>
         {child.status ? <Chip text={child.status} theme={theme} tone={failed ? "danger" : undefined} /> : null}
         {child.runId && child.key ? <Mono text={child.runId.slice(0, 8)} theme={theme} /> : null}
       </View>
       {shown ? (
-        <Text selectable style={{ color: theme.colors.foreground, fontSize: 12, lineHeight: 18 }}>
+        <Text selectable style={{ color: theme.colors.foreground, fontSize: FONT.body, lineHeight: LINE.body }}>
           {shown}
         </Text>
       ) : child.previewUnavailable ? (
-        <Text style={{ color: theme.colors.foregroundMuted, fontSize: 11, fontStyle: "italic" }}>
+        <Text style={{ color: theme.colors.foregroundMuted, fontSize: FONT.meta, fontStyle: "italic" }}>
           {t.notice_no_preview(child.previewUnavailable)}
         </Text>
       ) : null}
       {child.savedOutputPath ? <Mono text={`${t.notice_saved_output}: ${child.savedOutputPath}`} theme={theme} /> : null}
       {long ? (
         <Pressable accessibilityRole="button" onPress={() => setExpanded((value) => !value)} style={{ alignSelf: "flex-start", paddingVertical: 2 }}>
-          <Text style={{ color: theme.colors.accent, fontSize: 11, fontWeight: "700" }}>
+          <Text style={{ color: theme.colors.accent, fontSize: FONT.meta, fontWeight: "700" }}>
             {expanded ? t.notice_collapse : t.notice_expand}
           </Text>
         </Pressable>
@@ -260,7 +248,7 @@ function CompletionBlock({ entry, showAgent, theme, t }: {
   return (
     <View style={{ gap: 6 }}>
       {showAgent ? (
-        <Text style={{ color: theme.colors.foreground, fontSize: 12, fontWeight: "800" }}>
+        <Text style={{ color: theme.colors.foreground, fontSize: FONT.rowTitle, fontWeight: "800" }}>
           {entry.agent}{entry.taskInfo ? ` ${entry.taskInfo}` : ""}
         </Text>
       ) : null}
@@ -279,26 +267,26 @@ function CompletionBlock({ entry, showAgent, theme, t }: {
       </View>
 
       {summary ? (
-        <Text selectable style={{ color: theme.colors.foreground, fontSize: 13, lineHeight: 19 }}>
+        <Text selectable style={{ color: theme.colors.foreground, fontSize: FONT.body, lineHeight: LINE.body }}>
           {summary}
         </Text>
       ) : null}
       {long ? (
         <Pressable accessibilityRole="button" onPress={() => setExpanded((value) => !value)} style={{ alignSelf: "flex-start", paddingVertical: 2 }}>
-          <Text style={{ color: theme.colors.accent, fontSize: 12, fontWeight: "700" }}>
+          <Text style={{ color: theme.colors.accent, fontSize: FONT.meta, fontWeight: "700" }}>
             {expanded ? t.notice_collapse : t.notice_expand}
           </Text>
         </Pressable>
       ) : null}
 
       {entry.structured !== undefined ? (
-        <View style={{ gap: 4, padding: 8, borderRadius: 8, backgroundColor: theme.colors.surface2 ?? theme.colors.surface1 }}>
+        <View style={{ gap: SPACE.tight, padding: SPACE.gap, borderRadius: RADIUS.inner, backgroundColor: theme.colors.surface2 ?? theme.colors.surface1 }}>
           <JsonNode value={entry.structured} theme={theme} depth={0} />
         </View>
       ) : null}
 
       {entry.structuredTruncated ? (
-        <Text style={{ color: theme.colors.foregroundMuted, fontSize: 11, fontStyle: "italic" }}>
+        <Text style={{ color: theme.colors.foregroundMuted, fontSize: FONT.meta, fontStyle: "italic" }}>
           {t.notice_structured_truncated}
         </Text>
       ) : null}
@@ -308,20 +296,20 @@ function CompletionBlock({ entry, showAgent, theme, t }: {
       ))}
 
       {entry.omittedPreviews ? (
-        <Text style={{ color: theme.colors.foregroundMuted, fontSize: 11 }}>
+        <Text style={{ color: theme.colors.foregroundMuted, fontSize: FONT.meta }}>
           {t.notice_omitted_previews(entry.omittedPreviews)}
         </Text>
       ) : null}
 
       {/* 子任务没有输出，但返回值预览确实被丢过 —— 说明白，别让人以为卡片坏了 */}
       {entry.workflow?.returnTruncated && entry.childOutputs.length > 0 && !summary ? (
-        <Text style={{ color: theme.colors.foregroundMuted, fontSize: 11, fontStyle: "italic" }}>
+        <Text style={{ color: theme.colors.foregroundMuted, fontSize: FONT.meta, fontStyle: "italic" }}>
           {t.notice_return_dropped}
         </Text>
       ) : null}
 
       {entry.workflow?.notes.map((note) => (
-        <Text key={note} style={{ color: theme.colors.foregroundMuted, fontSize: 11, lineHeight: 16 }}>
+        <Text key={note} style={{ color: theme.colors.foregroundMuted, fontSize: FONT.meta, lineHeight: LINE.meta }}>
           {note}
         </Text>
       ))}
@@ -354,24 +342,24 @@ export function PiNoticeCard({ notice, theme, t }: {
   //   而是它本来就不该问你。
   if (notice.kind === "model_only" || notice.kind === "supervisor") {
     return (
-      <View style={{ gap: 4, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surface1, opacity: 0.75 }}>
+      <View style={{ gap: SPACE.tight, padding: SPACE.row, borderRadius: RADIUS.card, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surface1, opacity: 0.75 }}>
         <Pressable accessibilityRole="button" onPress={() => setExpanded((value) => !value)}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             <Icon name={look.icon} size={14} color={look.color} />
-            <Text style={{ color: theme.colors.foregroundMuted, fontSize: 12, flex: 1 }}>
+            <Text style={{ color: theme.colors.foregroundMuted, fontSize: FONT.rowTitle, flex: 1 }}>
               {headline(notice, t)}
             </Text>
-            <Text style={{ color: theme.colors.accent, fontSize: 11, fontWeight: "700" }}>
+            <Text style={{ color: theme.colors.accent, fontSize: FONT.meta, fontWeight: "700" }}>
               {expanded ? t.notice_collapse : t.notice_expand}
             </Text>
           </View>
         </Pressable>
         {expanded ? (
           <>
-            <Text style={{ color: theme.colors.foregroundMuted, fontSize: 11, lineHeight: 16 }}>
+            <Text style={{ color: theme.colors.foregroundMuted, fontSize: FONT.meta, lineHeight: LINE.meta }}>
               {notice.kind === "supervisor" ? t.notice_supervisor_body : t.notice_model_only_body}
             </Text>
-            <Text selectable style={{ color: theme.colors.foreground, fontSize: 12, lineHeight: 18 }}>
+            <Text selectable style={{ color: theme.colors.foreground, fontSize: FONT.body, lineHeight: LINE.body }}>
               {notice.body}
             </Text>
           </>
@@ -381,25 +369,13 @@ export function PiNoticeCard({ notice, theme, t }: {
   }
 
   return (
-    <View
-      style={{
-        gap: 8,
-        padding: 12,
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: look.accent ? look.color : theme.colors.border,
-        backgroundColor: theme.colors.surface1,
-      }}
-    >
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+    <CardShell theme={theme} accentColor={look.accent ? look.color : undefined}>
+      <CardHeader
+        trailing={status ? <Chip text={status} theme={theme} tone={notice.status === "failed" ? "danger" : undefined} /> : null}
+      >
         <Icon name={look.icon} size={16} color={look.color} />
-        <Text numberOfLines={2} style={{ color: theme.colors.foreground, fontWeight: "800", flex: 1 }}>
-          {headline(notice, t)}
-        </Text>
-        {status ? (
-          <Chip text={status} theme={theme} tone={notice.status === "failed" ? "danger" : undefined} />
-        ) : null}
-      </View>
+        <CardTitle text={headline(notice, t)} theme={theme} />
+      </CardHeader>
 
       {/* 元信息一行带过，不占主视线 */}
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
@@ -415,7 +391,7 @@ export function PiNoticeCard({ notice, theme, t }: {
       </View>
 
       {notice.error ? (
-        <Text selectable style={{ color: theme.colors.statusDanger, fontSize: 12, lineHeight: 17 }}>
+        <Text selectable style={{ color: theme.colors.statusDanger, fontSize: FONT.body, lineHeight: LINE.body }}>
           {notice.error}
         </Text>
       ) : null}
@@ -429,7 +405,7 @@ export function PiNoticeCard({ notice, theme, t }: {
       ) : null}
 
       {body ? (
-        <Text selectable style={{ color: theme.colors.foreground, fontSize: 13, lineHeight: 19 }}>
+        <Text selectable style={{ color: theme.colors.foreground, fontSize: FONT.body, lineHeight: LINE.body }}>
           {body}
         </Text>
       ) : null}
@@ -446,7 +422,7 @@ export function PiNoticeCard({ notice, theme, t }: {
 
 
       {notice.kind === "control" ? (
-        <Text style={{ color: theme.colors.foregroundMuted, fontSize: 11, lineHeight: 16 }}>
+        <Text style={{ color: theme.colors.foregroundMuted, fontSize: FONT.meta, lineHeight: LINE.meta }}>
           {t.notice_control_body}
         </Text>
       ) : null}
@@ -455,12 +431,12 @@ export function PiNoticeCard({ notice, theme, t }: {
 
       {long ? (
         <Pressable accessibilityRole="button" onPress={() => setExpanded((value) => !value)} style={{ alignSelf: "flex-start", paddingVertical: 2 }}>
-          <Text style={{ color: theme.colors.accent, fontSize: 12, fontWeight: "700" }}>
+          <Text style={{ color: theme.colors.accent, fontSize: FONT.meta, fontWeight: "700" }}>
             {expanded ? t.notice_collapse : t.notice_expand}
           </Text>
         </Pressable>
       ) : null}
-    </View>
+    </CardShell>
   );
 }
 
