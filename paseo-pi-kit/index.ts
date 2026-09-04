@@ -43,8 +43,33 @@ import { contributeSubagentPills, PiSubagentsPanel, SubagentTimelineCard } from 
 import { contributeTodoPills, TodoTimelineCard } from "./ui/todo.client";
 import { contributeProviderUsagePills } from "./ui/usage-pill.client";
 
+/**
+ * ⭐⭐ 必须先把 `undefined` 的键清掉，否则整条通知会静默退回裸文本。
+ *
+ * 宿主在 `transformTimelineItem` 里校验返回的 `data` 是否 JSON 兼容
+ * （web-ui 的 `transformed timeline item ... data must be JSON-compatible`）。
+ * 那个检查器是：
+ *
+ * ```js
+ * if (n === null || typeof n === "string" || typeof n === "boolean") return true;
+ * if (typeof n === "number") return Number.isFinite(n);
+ * if (typeof n !== "object") return false;          // ← undefined 落这里
+ * …
+ * return (Array.isArray(n) ? n : Object.values(n)).every(…)
+ * ```
+ *
+ * `Object.values()` **包含值为 `undefined` 的键**，而 `typeof undefined` 不是
+ * `"object"` —— 直接判不兼容、throw。调用处是 `try { … } catch`，异常被吞掉，
+ * 条目原样落回默认渲染。**没有任何报错，服务端一切正常。**
+ *
+ * 而 zod 的 `.optional()` 会把「存在但为 undefined」的键保留在输出里，
+ * 所以像 `runId` / `agent` / `variant` 取不到时就正好是这种键。
+ *
+ * `JSON.parse(JSON.stringify(…))` 会把这些键整个丢掉，一次性满足宿主的契约。
+ * 见 tests/timeline-data.test.ts —— 那条测试直接复刻了宿主的检查器。
+ */
 function timelineData(value: unknown): PluginTimelineData {
-  return value as PluginTimelineData;
+  return JSON.parse(JSON.stringify(value)) as PluginTimelineData;
 }
 
 export default function contribute(plugin: PluginContext) {
