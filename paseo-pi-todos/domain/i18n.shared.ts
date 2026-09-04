@@ -81,8 +81,45 @@ const CATALOG = {
     zh: `仅显示当前 agent：${agentId}`,
     en: `Scoped to the current agent: ${agentId}`,
   }),
+  subagents_starting: { zh: "启动中…", en: "Starting…" },
+  subagents_no_output: { zh: "没有输出", en: "No output" },
   subagents_expand_output: { zh: "展开子任务输出", en: "Show subtask output" },
   subagents_collapse_output: { zh: "收起子任务输出", en: "Hide subtask output" },
+
+  // ── Pi 通知卡片 ─────────────────────────────────────────────────
+  notice_background_task: { zh: "后台任务", en: "Background task" },
+  notice_workflow: { zh: "Workflow", en: "Workflow" },
+  notice_supervisor_decision: { zh: "等你裁决", en: "Awaiting your decision" },
+  notice_supervisor_progress: { zh: "Subagent 进度", en: "Subagent progress" },
+  notice_attention: { zh: "Subagent 需要关注", en: "Subagent needs attention" },
+  notice_web_search: { zh: "网页内容已抓取", en: "Web content fetched" },
+
+  notice_status_completed: { zh: "完成", en: "Completed" },
+  notice_status_failed: { zh: "失败", en: "Failed" },
+  notice_status_stopped: { zh: "已停止", en: "Stopped" },
+  notice_status_running: { zh: "运行中", en: "Running" },
+
+  notice_exit_code: (code: number) => ({ zh: `退出码 ${code}`, en: `exit ${code}` }),
+  notice_child_runs: (n: number) => ({
+    zh: `${n} 个子运行`,
+    en: `${n} child run${n === 1 ? "" : "s"}`,
+  }),
+  notice_agent: (name: string) => ({ zh: `agent ${name}`, en: `agent ${name}` }),
+  notice_child_index: (n: number) => ({ zh: `子任务 #${n}`, en: `child #${n}` }),
+  notice_fetched: (done: number, total: number) => ({
+    zh: `${done}/${total} 个 URL`,
+    en: `${done}/${total} URLs`,
+  }),
+  notice_output_file: { zh: "输出", en: "Output" },
+  notice_signal: { zh: "信号", en: "Signal" },
+  notice_hint: { zh: "建议", en: "Hint" },
+  notice_run: { zh: "Run", en: "Run" },
+  notice_awaiting_reply: {
+    zh: "它停在这里等你回话 —— 不回就不会往下走",
+    en: "It is blocked waiting for your reply",
+  },
+  notice_expand: { zh: "展开全文", en: "Show full text" },
+  notice_collapse: { zh: "收起", en: "Collapse" },
 
   // ── 语言 ────────────────────────────────────────────────────────
   settings_language: { zh: "界面语言", en: "Interface language" },

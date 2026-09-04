@@ -106,8 +106,8 @@ export function SubagentCardView({
       </View>
 
       {call.children.map((child) => <ChildRow t={t} key={`${call.callId}-${child.index}`} child={child} theme={theme} expanded={expanded} />)}
-      {!call.children.length && call.log ? (
-        <Text selectable style={{ color: theme.colors.foregroundMuted, fontFamily: "monospace", fontSize: 12 }}>{call.log}</Text>
+      {!call.children.length ? (
+        <Text selectable style={{ color: theme.colors.foregroundMuted, fontFamily: "monospace", fontSize: 12 }}>{call.log || (call.status === "running" ? t.subagents_starting : t.subagents_no_output)}</Text>
       ) : null}
 
       {call.children.some((child) => child.finalOutput || child.residualRisks?.length) ? (

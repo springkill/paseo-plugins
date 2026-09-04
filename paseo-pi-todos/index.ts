@@ -1,7 +1,9 @@
 import type { PluginContext, PluginTimelineData } from "@getpaseo/plugin";
-import { latestTodoRpc, localeRpc, setLocaleRpc, SubagentCallSchema, subagentCallsRpc, TodoBoardSchema } from "./domain/contracts.shared";
+import { latestTodoRpc, localeRpc, PiNoticeSchema, setLocaleRpc, SubagentCallSchema, subagentCallsRpc, TodoBoardSchema } from "./domain/contracts.shared";
 import { contributeSubagentPills, PiSubagentsPanel, SubagentTimelineCard } from "./ui/subagents.client";
 import { parseSubagentTimelineItem } from "./domain/subagent-parser.shared";
+import { parsePiNoticeTimelineItem } from "./domain/pi-notice-parser.shared";
+import { PiNoticeTimelineCard } from "./ui/pi-notice.client";
 import { listSubagentCalls } from "./server/subagents.server";
 import { contributeTodoPills, TodoTimelineCard } from "./ui/todo.client";
 import { parseTodoTimelineItem } from "./domain/todo-parser.shared";
@@ -71,6 +73,28 @@ export default function contribute(plugin: PluginContext) {
     version: 1,
     schema: SubagentCallSchema,
     Component: SubagentTimelineCard,
+  });
+
+  // ⚠️ Pi 的 custom_message 被 Paseo 的 pi/history-mapper 拍平成了普通助手消息
+  // （details 丢掉，只剩 content 文本），所以只能从 assistant_message 里反解。
+  // 详见 domain/pi-notice-parser.shared.ts 的模块注释。
+  plugin.addTimelineTransformer({
+    id: "pi-notice-card",
+    query: { itemType: "assistant_message" },
+    transform({ item }) {
+      const notice = parsePiNoticeTimelineItem(item);
+      if (!notice) return;
+      return {
+        items: [{ type: "plugin", kind: "pi-notice", version: 1, data: timelineData(notice) }],
+      };
+    },
+  });
+
+  plugin.addTimelineRenderer({
+    kind: "pi-notice",
+    version: 1,
+    schema: PiNoticeSchema,
+    Component: PiNoticeTimelineCard,
   });
 
   plugin.addWorkspacePanel({

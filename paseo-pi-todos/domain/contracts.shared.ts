@@ -32,6 +32,39 @@ export const setLocaleRpc = defineRpc({
   }),
 });
 
+/**
+ * Pi 的通知类消息（后台任务 / workflow / subagent 督导 / 需要关注 / 网页抓取）。
+ *
+ * ⚠️ 这些在 Paseo 里被拍平成了普通助手消息（`details` 被丢掉），所以字段是
+ * 从文本反解出来的。取不到的留空 —— 少一个字段不该让整张卡片退回裸文本。
+ */
+export const PiNoticeSchema = z.object({
+  kind: z.enum(["background_task", "workflow", "supervisor", "attention", "web_search"]),
+  /** `need_decision` / `progress_update` 之类的子形态。 */
+  variant: z.string().optional(),
+  status: z.enum(["completed", "failed", "stopped", "running", "attention"]).optional(),
+  taskId: z.string().max(200).optional(),
+  taskName: z.string().max(300).optional(),
+  exitCode: z.number().int().optional(),
+  outputFile: z.string().max(1000).optional(),
+  runId: z.string().max(200).optional(),
+  agent: z.string().max(200).optional(),
+  childIndex: z.number().int().nonnegative().optional(),
+  /** 有它就说明这条在等你回话。 */
+  replyTo: z.string().max(200).optional(),
+  signal: z.string().max(1000).optional(),
+  hint: z.string().max(2000).optional(),
+  fetched: z.object({ done: z.number().int(), total: z.number().int() }).optional(),
+  childRuns: z.array(z.object({
+    key: z.string().max(200),
+    runId: z.string().max(200).optional(),
+    status: z.string().max(60).optional(),
+  })).max(50).default([]),
+  body: z.string().max(20000).default(""),
+});
+
+export type PiNotice = z.output<typeof PiNoticeSchema>;
+
 export const TaskStatusSchema = z.enum(["pending", "in_progress", "completed", "deleted"]);
 
 export const TodoTaskSchema = z.object({

@@ -27,7 +27,9 @@ export function parseSubagentTimelineItem(value: unknown): SubagentCall | null {
   const status = rawStatus === "completed" || rawStatus === "failed" || rawStatus === "canceled"
     ? rawStatus
     : "running";
-  const log = string(detail.log) ?? (status === "running" ? "正在启动…" : "没有输出");
+  // ⚠️ 解析层不产生用户可见文案 —— 它是 .shared.ts，两端共用，没有 locale 可依。
+  // 空字符串交给渲染层，由 t 决定说"启动中…"还是"没有输出"
+  const log = string(detail.log) ?? "";
   const mission = log.match(/Mission:\s*([A-Za-z0-9-]+)\s*\(([^)]+)\)/);
   const candidate = {
     callId: string(item.callId) ?? "unknown",
