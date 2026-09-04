@@ -23,7 +23,19 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: ${{ matrix.plugin }}/package-lock.json
+      # ⭐ 缓存 node_modules 本身，不只是 ~/.npm。
+      # setup-node 的 `cache: npm` 只存下载的 tarball；npm ci 每次照样把
+      # 300+ 个包删掉重解压 —— react-native 那种几万个小文件，解压才是瓶颈。
+      # 实测：只有 ~/.npm 缓存时 npm ci 仍要 166~421 秒。
+      # key 里锁了 os + node 版本 + lockfile 哈希，依赖一变就自然失效。
+      - name: Restore node_modules
+        id: modules
+        uses: actions/cache@v4
+        with:
+          path: ${{ matrix.plugin }}/node_modules
+          key: nm-${{ runner.os }}-node22-${{ hashFiles(format('{0}/package-lock.json', matrix.plugin)) }}
       - run: npm ci
+        if: steps.modules.outputs.cache-hit != 'true'
       - run: npm run typecheck
       # provider-balances 还没有测试，别让它把 CI 判红
       - run: npm test --if-present
