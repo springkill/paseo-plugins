@@ -1,0 +1,4 @@
+{
+  "id": "paseo-provider-balances",
+  "build": [["npm", "install", "--no-audit", "--no-fund", "--loglevel=error"]]
+}
