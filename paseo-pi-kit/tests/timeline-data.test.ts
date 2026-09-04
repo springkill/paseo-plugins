@@ -134,3 +134,77 @@ test("⭐ todo 与 subagent 的数据同样要过", () => {
   const call = parseSubagentTimelineItem({ type: "tool_call", name: "subagent", detail: {} });
   if (call) assert.ok(isJsonCompatible(timelineData(call)));
 });
+
+// ── 结构化输出 ──────────────────────────────────────────────────────
+
+test("⭐ Structured output 的 JSON 被拆成结构，不再当文本墙", () => {
+  const notice = parsePiNoticeText(`Background task completed: **delegate**
+
+Structured output:
+{
+  "verdict": "PASS",
+  "findings": [],
+  "evidence": [
+    { "check": "identity", "outcome": "recomputed sha256" }
+  ]
+}`);
+  assert.ok(notice);
+  const entry = notice.entries[0]!;
+  assert.equal(entry.agent, "delegate");
+  assert.deepEqual(entry.structured, {
+    verdict: "PASS",
+    findings: [],
+    evidence: [{ check: "identity", outcome: "recomputed sha256" }],
+  });
+  assert.equal(entry.summary, "", "JSON 抽走后正文就空了，别再重复一遍");
+  // 宿主契约仍然要满足
+  assert.ok(isJsonCompatible(timelineData(notice)));
+});
+
+test("⭐ Pi 截断的 JSON 要能修回来 —— 截断是常态不是意外", () => {
+  // Pi 把 Structured output 砍在 4000 字符，断点几乎总在结构中间
+  const notice = parsePiNoticeText(`Background task completed: **delegate**
+
+Structured output:
+{
+  "verdict": "PASS",
+  "findings": [],
+  "evidence": [
+    { "check": "identity", "outcome": "ok" },
+    { "check": "tests", "outc`)!;
+  const entry = notice.entries[0]!;
+  const structured = entry.structured as Record<string, unknown>;
+  assert.ok(structured, "修不出来就只能当文本墙倒出来 —— 那正是要解决的问题");
+  assert.equal(structured.verdict, "PASS");
+  assert.deepEqual(structured.findings, []);
+  // 切点取「字符串外最靠后的逗号或闭合括号」，所以断掉那条已完成的字段会保留下来 ——
+  // 比整条丢弃更有用，能修多少算多少
+  assert.deepEqual(structured.evidence, [
+    { check: "identity", outcome: "ok" },
+    { check: "tests" },
+  ]);
+  assert.equal(entry.structuredTruncated, true, "要如实告诉用户是修出来的");
+  assert.ok(isJsonCompatible(timelineData(notice)));
+});
+
+test("⭐ 修不动时退回原文，不能变成空白", () => {
+  const notice = parsePiNoticeText(`Background task completed: **delegate**
+
+Structured output:
+{ "verdict": "PA`)!;
+  const entry = notice.entries[0]!;
+  assert.equal(entry.structured, undefined, "修不出来就别硬塞");
+  assert.equal(entry.structuredTruncated, true);
+  assert.ok(entry.summary.includes("verdict"), "原文要留住，显示不全好过什么都不显示");
+  assert.ok(isJsonCompatible(timelineData(notice)));
+});
+
+test("workflow 的 Return 在没有子输出时也拆成结构", () => {
+  const notice = parsePiNoticeText(`Background task completed: **workflow**
+
+Workflow completed with 1 child run(s). Return: {"ok":true,"key":"a"} Trace: 2 event(s).`)!;
+  const entry = notice.entries[0]!;
+  assert.deepEqual(entry.structured, { ok: true, key: "a" });
+  assert.equal(entry.workflow?.childCount, 1);
+  assert.ok(isJsonCompatible(timelineData(notice)));
+});

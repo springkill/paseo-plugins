@@ -32,3 +32,34 @@ export function describeItem(value: unknown): string {
     + ` textLen=${text?.length ?? "n/a"}`
     + ` head=${JSON.stringify(text?.slice(0, 48) ?? null)}`;
 }
+
+/** 宿主 `transformTimelineItem` 里那个 JSON 兼容性校验，原样复刻。 */
+export function hostJsonCompatible(value: unknown, seen: Set<object> = new Set()): boolean {
+  if (value === null || typeof value === "string" || typeof value === "boolean") return true;
+  if (typeof value === "number") return Number.isFinite(value);
+  if (typeof value !== "object") return false;
+  const object = value as object;
+  if (seen.has(object)) return false;
+  if (!Array.isArray(object)) {
+    const proto = Object.getPrototypeOf(object);
+    if (proto !== Object.prototype && proto !== null) return false;
+    if (Reflect.ownKeys(object).some((key) => typeof key !== "string")) return false;
+  }
+  seen.add(object);
+  const values = Array.isArray(object) ? object : Object.values(object);
+  const ok = values.every((entry) => hostJsonCompatible(entry, seen));
+  seen.delete(object);
+  return ok;
+}
+
+/** 摘要 transform 交出去的 data，附上宿主视角的裁决。 */
+export function describeData(data: unknown): string {
+  const d = data as Record<string, unknown> | null;
+  const entries = Array.isArray(d?.entries) ? (d!.entries as unknown[]) : [];
+  const first = entries[0] as Record<string, unknown> | undefined;
+  const children = Array.isArray(first?.childOutputs) ? (first!.childOutputs as unknown[]).length : 0;
+  return `kind=${String(d?.kind)} variant=${String(d?.variant)}`
+    + ` entries=${entries.length} childOutputs=${children}`
+    + ` bytes=${JSON.stringify(data).length}`
+    + ` hostJsonOk=${hostJsonCompatible(data)}`;
+}

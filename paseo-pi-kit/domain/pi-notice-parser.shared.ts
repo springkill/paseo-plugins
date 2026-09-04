@@ -282,6 +282,101 @@ function parseWorkflowSummary(summary: string): {
   };
 }
 
+/**
+ * 从正文里把 JSON 块抠出来并解析。
+ *
+ * Pi 有两处会往正文里塞 JSON，而且**都是硬截断的**：
+ *
+ * - `Structured output:\n${JSON.stringify(v, null, 2).slice(0, 4_000)}`
+ *   （result-watcher.ts / notify.ts）
+ * - `Return: ${formatWorkflowValue(v).slice(0, 1_000)}`
+ *   （subagent-executor.ts）
+ *
+ * 截断点经常落在结构中间，所以 `JSON.parse` 会失败 —— 那时退回原文，
+ * 至少别把「解析失败」变成「什么都不显示」。
+ */
+function extractJson(text: string): { value?: unknown; raw?: string; repaired?: boolean } {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return {};
+  try {
+    const value: unknown = JSON.parse(trimmed);
+    // 只接受 JSON 兼容的结果 —— 宿主会校验，见 index.ts 的 timelineData
+    if (value !== undefined) return { value };
+  } catch {
+    // 往下走修复
+  }
+  const repaired = repairTruncatedJson(trimmed);
+  return repaired !== undefined ? { value: repaired, repaired: true } : { raw: trimmed };
+}
+
+/**
+ * 把被截断的 JSON 修回能解析的形状。
+ *
+ * ⭐ Pi 的截断是**常态不是意外**：`Structured output:` 砍在 4000 字符、
+ * workflow `Return:` 砍在 1000 字符，断点几乎总是落在结构中间。
+ * 不修的话这两处永远只能当文本墙倒出来 —— 而那正是这个插件要解决的问题。
+ *
+ * 做法：从后往前找「安全切点」（字符串外的 `,` 或闭合括号），在那里截断，
+ * 再按扫描出来的栈补齐闭合符号。试几次就放弃 —— 修不出来时退回原文，
+ * 显示不全好过什么都不显示。
+ */
+function repairTruncatedJson(text: string): unknown {
+  const cuts: number[] = [];
+  const stack: string[] = [];
+  let inString = false;
+  let escaped = false;
+
+  for (let index = 0; index < text.length; index++) {
+    const char = text[index]!;
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (char === "\\") {
+      if (inString) escaped = true;
+      continue;
+    }
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (char === "{" || char === "[") {
+      stack.push(char === "{" ? "}" : "]");
+    } else if (char === "}" || char === "]") {
+      stack.pop();
+      cuts.push(index + 1);
+    } else if (char === ",") {
+      cuts.push(index);
+    }
+  }
+
+  // 从最靠后的切点开始试，最多五次
+  for (const cut of cuts.slice(-5).reverse()) {
+    const head = text.slice(0, cut);
+    const depth: string[] = [];
+    let quoted = false;
+    let skip = false;
+    for (let index = 0; index < head.length; index++) {
+      const char = head[index]!;
+      if (skip) { skip = false; continue; }
+      if (char === "\\") { if (quoted) skip = true; continue; }
+      if (char === '"') { quoted = !quoted; continue; }
+      if (quoted) continue;
+      if (char === "{" || char === "[") depth.push(char === "{" ? "}" : "]");
+      else if (char === "}" || char === "]") depth.pop();
+    }
+    if (quoted) continue; // 切在字符串里，换下一个切点
+    try {
+      const value: unknown = JSON.parse(head + depth.reverse().join(""));
+      if (value !== undefined) return value;
+    } catch {
+      // 换下一个切点
+    }
+  }
+  return undefined;
+}
+
 /** `Child runs: k=id (status), k2=id2` → 结构化。 */
 function parseChildRunsLine(value: string): PiCompletionEntry["childRuns"] {
   return value
@@ -347,9 +442,30 @@ function parseCompletionBody(body: string[], agent: string, taskInfo?: string): 
   const { workflow, summary: workflowSummary } = parseWorkflowSummary(rawSummary);
 
   // workflow 的 Return 预览只在没有结构化子输出时才值得展示
-  const summary = workflow
+  const plainSummary = workflow
     ? (childOutputs.length ? "" : workflowSummary)
     : rawSummary === "(no output)" ? "" : rawSummary;
+
+  // ⭐ `Structured output:` 后面那坨 JSON 是本插件最初要解决的问题本身 ——
+  // 拆成结构化数据交给卡片渲染，别再当一堵文本墙倒出来。
+  let structured: unknown;
+  let structuredTruncated: boolean | undefined;
+  let summary = plainSummary;
+  const structuredAt = plainSummary.indexOf("Structured output:");
+  const blob = structuredAt >= 0
+    ? plainSummary.slice(structuredAt + "Structured output:".length)
+    : workflow ? plainSummary : "";
+  if (blob.trim()) {
+    const extracted = extractJson(blob);
+    if (extracted.value !== undefined) {
+      structured = extracted.value;
+      structuredTruncated = extracted.repaired;
+      summary = structuredAt >= 0 ? plainSummary.slice(0, structuredAt).trim() : "";
+    } else if (extracted.raw && structuredAt >= 0) {
+      // 连修都修不出来 —— 标记出来，正文保留原文
+      structuredTruncated = true;
+    }
+  }
 
   const sessionLine = sessionIndex >= 0 ? rows[sessionIndex]! : undefined;
   const separator = sessionLine?.indexOf(":") ?? -1;
@@ -358,6 +474,8 @@ function parseCompletionBody(body: string[], agent: string, taskInfo?: string): 
     agent,
     ...(taskInfo ? { taskInfo } : {}),
     summary,
+    ...(structured !== undefined ? { structured } : {}),
+    ...(structuredTruncated ? { structuredTruncated } : {}),
     ...(workflow ? { workflow } : {}),
     childOutputs,
     ...(omittedPreviews !== undefined ? { omittedPreviews } : {}),

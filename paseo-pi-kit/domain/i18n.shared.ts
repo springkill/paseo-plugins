@@ -148,6 +148,11 @@ const CATALOG = {
   }),
   // Pi 把 workflow 返回值硬截断到 1000 字符，截断点常落在字符串中间。
   // 子输出里有同样内容的结构化版本，所以丢掉那段并不损失信息。
+  // Pi 把结构化输出硬截断到 4000 字符，断在 JSON 中间就 parse 不动了
+  notice_structured_truncated: {
+    zh: "结构化输出被 Pi 截断，下面是原文",
+    en: "Pi truncated the structured output; raw text below",
+  },
   notice_return_dropped: {
     zh: "返回值预览被 Pi 截断，已用下面的子任务输出替代",
     en: "Pi truncated the return preview; child outputs below supersede it",

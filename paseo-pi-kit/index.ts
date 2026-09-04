@@ -37,7 +37,7 @@ import { getLocale, reportDiag, setLocale } from "./server/locale.server";
 import { closeProviderUsageClient, listProviderUsage } from "./server/provider-usage.server";
 import { listSubagentCalls } from "./server/subagents.server";
 import { getLatestTodo } from "./server/todo.server";
-import { describeItem, drain, record } from "./ui/diag.client";
+import { describeData, describeItem, drain, record } from "./ui/diag.client";
 import { PiNoticeTimelineCard } from "./ui/pi-notice.client";
 import { contributeSubagentPills, PiSubagentsPanel, SubagentTimelineCard } from "./ui/subagents.client";
 import { contributeTodoPills, TodoTimelineCard } from "./ui/todo.client";
@@ -155,9 +155,13 @@ export default function contribute(plugin: PluginContext) {
     query: { itemType: "assistant_message" },
     transform({ item }) {
       const notice = parsePiNoticeTimelineItem(item);
-      record(`notice ${describeItem(item)} matched=${!!notice}`);
-      if (!notice) return;
-      return { items: [{ type: "plugin", kind: "pi-notice", version: 1, data: timelineData(notice) }] };
+      if (!notice) {
+        record(`notice ${describeItem(item)} matched=false`);
+        return;
+      }
+      const data = timelineData(notice);
+      record(`notice matched textLen=${(item as { text?: string }).text?.length} ${describeData(data)}`);
+      return { items: [{ type: "plugin", kind: "pi-notice", version: 1, data }] };
     },
   });
   plugin.addTimelineRenderer({

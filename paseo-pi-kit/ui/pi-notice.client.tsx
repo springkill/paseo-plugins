@@ -136,6 +136,77 @@ function Labelled({ label, value, theme }: { label: string; value: string; theme
   );
 }
 
+/** 值太长就截断 —— 哈希、路径动辄上百字符。 */
+function short(value: string, max = 120): string {
+  return value.length > max ? `${value.slice(0, max)}…` : value;
+}
+
+/**
+ * 结构化输出的渲染。
+ *
+ * ⭐ 这就是这个插件最初要解决的东西：Pi 的 `Structured output:` 和 workflow
+ * `Return:` 会往正文里塞一坨 `JSON.stringify(v, null, 2)`，Paseo 当普通文本渲染，
+ * 于是用户看到一堵墙。这里按结构铺开：标量一行一条，嵌套折进去。
+ */
+function JsonNode({ label, value, theme, depth }: {
+  label?: string;
+  value: unknown;
+  theme: PluginTheme;
+  depth: number;
+}) {
+  const [open, setOpen] = useState(depth < 1);
+  const key = label ? (
+    <Text style={{ color: theme.colors.foregroundMuted, fontSize: 11, fontWeight: "700" }}>{label}</Text>
+  ) : null;
+
+  if (value === null || typeof value !== "object") {
+    const text = typeof value === "string" ? value : JSON.stringify(value);
+    return (
+      <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap", alignItems: "flex-start" }}>
+        {key}
+        <Text selectable style={{ color: theme.colors.foreground, fontSize: 12, lineHeight: 17, flex: 1 }}>
+          {short(text ?? "null", 400)}
+        </Text>
+      </View>
+    );
+  }
+
+  const entries: Array<[string, unknown]> = Array.isArray(value)
+    ? value.map((entry, index) => [`[${index}]`, entry])
+    : Object.entries(value as Record<string, unknown>);
+  if (entries.length === 0) {
+    return (
+      <View style={{ flexDirection: "row", gap: 6 }}>
+        {key}
+        <Text style={{ color: theme.colors.foregroundMuted, fontSize: 11 }}>
+          {Array.isArray(value) ? "[]" : "{}"}
+        </Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={{ gap: 3 }}>
+      <Pressable accessibilityRole="button" onPress={() => setOpen((v) => !v)}>
+        <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
+          <Icon name={open ? "ChevronDown" : "ChevronRight"} size={12} color={theme.colors.foregroundMuted} />
+          {key}
+          <Text style={{ color: theme.colors.foregroundMuted, fontSize: 10 }}>
+            {Array.isArray(value) ? `${entries.length} 项` : `${entries.length}`}
+          </Text>
+        </View>
+      </Pressable>
+      {open ? (
+        <View style={{ gap: 4, paddingLeft: 10, borderLeftWidth: 1, borderLeftColor: theme.colors.border }}>
+          {entries.map(([childKey, childValue]) => (
+            <JsonNode key={childKey} label={childKey} value={childValue} theme={theme} depth={depth + 1} />
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 /** 一个子任务的输出。⭐ 这一块就是原来那坨 JSON 该变成的样子。 */
 function ChildOutput({ child, theme, t }: { child: PiChildOutput; theme: PluginTheme; t: Translator }) {
   const [expanded, setExpanded] = useState(false);
@@ -218,6 +289,18 @@ function CompletionBlock({ entry, showAgent, theme, t }: {
             {expanded ? t.notice_collapse : t.notice_expand}
           </Text>
         </Pressable>
+      ) : null}
+
+      {entry.structured !== undefined ? (
+        <View style={{ gap: 4, padding: 8, borderRadius: 8, backgroundColor: theme.colors.surface2 ?? theme.colors.surface1 }}>
+          <JsonNode value={entry.structured} theme={theme} depth={0} />
+        </View>
+      ) : null}
+
+      {entry.structuredTruncated ? (
+        <Text style={{ color: theme.colors.foregroundMuted, fontSize: 11, fontStyle: "italic" }}>
+          {t.notice_structured_truncated}
+        </Text>
       ) : null}
 
       {entry.childOutputs.map((child, index) => (

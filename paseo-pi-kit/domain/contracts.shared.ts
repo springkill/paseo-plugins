@@ -90,8 +90,15 @@ export const CompletionEntrySchema = z.object({
   /** 头部 `**agent**` 后面那个 `(…)`。 */
   taskInfo: z.string().max(400).optional(),
   status: NoticeStatusSchema.optional(),
-  /** 正文，已剥掉 `Child outputs:` 区块和各元信息行。 */
+  /** 正文，已剥掉 `Child outputs:` 区块、JSON 块和各元信息行。 */
   summary: z.string().max(20000).default(""),
+  /**
+   * `Structured output:` / workflow `Return:` 里那坨 JSON，解析成功时放这里。
+   * ⚠️ 必须是 JSON 兼容值 —— 宿主会校验，见 index.ts 的 timelineData。
+   */
+  structured: z.unknown().optional(),
+  /** JSON 被 Pi 截断到 parse 不动，正文里留了原文。 */
+  structuredTruncated: z.boolean().optional(),
   workflow: WorkflowSummarySchema.optional(),
   childOutputs: z.array(ChildOutputSchema).max(50).default([]),
   /** 超出 notice 预算、被 Pi 省掉预览的子任务数。 */
