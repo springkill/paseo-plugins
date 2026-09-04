@@ -66,11 +66,8 @@ function headline(notice: PiNotice, t: Translator): string {
 }
 
 function visuals(notice: PiNotice, theme: PluginTheme) {
-  // ⭐ 只有「等你裁决」「等你回答」「需要关注」值得抢注意力 —— 它们是真的停住了。
-  // 别的都是既成事实，通知一声就够。
-  if (notice.kind === "supervisor" && notice.variant !== "progress_update") {
-    return { icon: "MessageCircleQuestion", color: theme.colors.statusWarning, accent: true };
-  }
+  // ⭐ supervisor 不在这里 —— 它不是问你，见下面 COLLAPSED 的说明。
+  // 只有「需要关注」是真的停住并且要人介入。
   if (notice.kind === "control" && notice.variant === "attention") {
     return { icon: "TriangleAlert", color: theme.colors.statusWarning, accent: true };
   }
@@ -83,7 +80,7 @@ function visuals(notice: PiNotice, theme: PluginTheme) {
   const byKind: Record<PiNotice["kind"], string> = {
     background_task: "Terminal",
     completion: "Workflow",
-    supervisor: "MessagesSquare",
+    supervisor: "ArrowLeftRight",
     control: "TriangleAlert",
     wait: "AlarmClock",
     web_fetch: "Globe",
@@ -259,8 +256,16 @@ export function PiNoticeCard({ notice, theme, t }: {
   const long = notice.body.length > COLLAPSE_OVER;
   const body = expanded || !long ? notice.body : `${notice.body.slice(0, COLLAPSE_OVER)}…`;
 
-  // ⭐ Pi 自己从不显示这两条，我们也没理由占满一屏 —— 折成一行
-  if (notice.kind === "model_only") {
+  // ⭐ 折成一行的两类：
+  //
+  // - model_only：Pi 标了 display:false，它自己的界面从不显示。
+  // - supervisor：subagent 发给**父 agent**的内部通信，正文结尾是
+  //   `Reply with: subagent_supervisor({ … })` —— 那是个工具调用，只有模型能发。
+  //   Paseo 真正的问答走的是另一条路（pi provider 的
+  //   `mapExtensionUiRequestToPermission`，渲染成带选项的权限对话框）。
+  //   所以这里绝不能做成「等你裁决」的样子：没有选项不是漏做了选项，
+  //   而是它本来就不该问你。
+  if (notice.kind === "model_only" || notice.kind === "supervisor") {
     return (
       <View style={{ gap: 4, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surface1, opacity: 0.75 }}>
         <Pressable accessibilityRole="button" onPress={() => setExpanded((value) => !value)}>
@@ -277,7 +282,7 @@ export function PiNoticeCard({ notice, theme, t }: {
         {expanded ? (
           <>
             <Text style={{ color: theme.colors.foregroundMuted, fontSize: 11, lineHeight: 16 }}>
-              {t.notice_model_only_body}
+              {notice.kind === "supervisor" ? t.notice_supervisor_body : t.notice_model_only_body}
             </Text>
             <Text selectable style={{ color: theme.colors.foreground, fontSize: 12, lineHeight: 18 }}>
               {notice.body}
@@ -321,13 +326,6 @@ export function PiNoticeCard({ notice, theme, t }: {
         {notice.outcome ? <Chip text={notice.outcome} theme={theme} /> : null}
         {notice.runId ? <Mono text={`${t.notice_run} ${notice.runId.slice(0, 8)}`} theme={theme} /> : null}
       </View>
-
-      {/* ⭐ 它真的卡住了，这句话得说明白 */}
-      {notice.replyTo ? (
-        <Text style={{ color: theme.colors.statusWarning, fontSize: 12, lineHeight: 17 }}>
-          {t.notice_awaiting_reply}
-        </Text>
-      ) : null}
 
       {notice.error ? (
         <Text selectable style={{ color: theme.colors.statusDanger, fontSize: 12, lineHeight: 17 }}>

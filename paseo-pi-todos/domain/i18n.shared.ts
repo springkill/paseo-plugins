@@ -94,9 +94,10 @@ const CATALOG = {
     zh: `${n} 个任务完成`,
     en: `${n} task${n === 1 ? "" : "s"} completed`,
   }),
-  notice_supervisor_decision: { zh: "等你裁决", en: "Awaiting your decision" },
+  // ⚠️ 这三条是 subagent 发给**父 agent**的，不是问你 —— 措辞别暗示需要你操作
+  notice_supervisor_decision: { zh: "Subagent 请求上级裁决", en: "Subagent asked its supervisor" },
   notice_supervisor_progress: { zh: "Subagent 进度", en: "Subagent progress" },
-  notice_supervisor_interview: { zh: "等你回答结构化提问", en: "Structured interview requested" },
+  notice_supervisor_interview: { zh: "Subagent 请求结构化答复", en: "Subagent requested a structured reply" },
   notice_control_failed: { zh: "Subagent 失败", en: "Subagent failed" },
   notice_control_long_running: { zh: "Subagent 跑得久", en: "Subagent running long" },
   notice_control_attention: { zh: "Subagent 需要关注", en: "Subagent needs attention" },
@@ -158,9 +159,9 @@ const CATALOG = {
     zh: "这条是 Pi 发给模型的上下文，它自己的界面从不显示。Paseo 不看 display 标记，所以漏到了这里。",
     en: "Pi sends this to the model only and never shows it. Paseo ignores the display flag, so it leaked here.",
   },
-  notice_awaiting_reply: {
-    zh: "它停在这里等你回话 —— 不回就不会往下走",
-    en: "It is blocked waiting for your reply",
+  notice_supervisor_body: {
+    zh: "这是 subagent 发给父 agent 的内部通信，要靠模型调 subagent_supervisor 回复，不需要你操作。Paseo 真正需要你回答的提问会弹带选项的对话框。",
+    en: "Internal subagent-to-parent traffic; the model answers it with subagent_supervisor. Questions that actually need you appear as a Paseo dialog with options.",
   },
   notice_expand: { zh: "展开全文", en: "Show full text" },
   notice_collapse: { zh: "收起", en: "Collapse" },

@@ -255,7 +255,18 @@ Scheduled run from **nightly** (schedule sch-7).
 
 // ── subagent 督导 ───────────────────────────────────────────────────
 
-test("需要裁决：认出它在等你回话", () => {
+/**
+ * ⚠️ supervisor 这三种**不是在问你**。
+ *
+ * 正文结尾是 `Reply with: subagent_supervisor({ … })` —— 那是个工具调用，
+ * 只有模型能发；native-supervisor-channel.ts 也是把它投给 orchestratorSessionId
+ * （父 agent）。Paseo 真正要你回答的提问走另一条路：pi provider 的
+ * `mapExtensionUiRequestToPermission`，渲染成带选项的权限对话框。
+ *
+ * 所以卡片必须折叠、不给强调色、不说「等你回话」——
+ * 没有选项不是漏做了选项，是它本来就不该问你。
+ */
+test("需要裁决：认出它在等父 agent 回话", () => {
   const notice = parsePiNoticeText(NEED_DECISION);
   assert.ok(notice);
   assert.equal(notice.kind, "supervisor");
@@ -263,13 +274,13 @@ test("需要裁决：认出它在等你回话", () => {
   assert.equal(notice.runId, "0941988d-a4c5-46ad-beb7-7ff58e9497eb");
   assert.equal(notice.agent, "delegate");
   assert.equal(notice.childIndex, 0);
-  assert.equal(notice.replyTo, "2e7e8345-61fc-4ac8-9fe9-4f938ca92e6e", "有 replyTo 才知道它在等回话");
+  assert.equal(notice.replyTo, "2e7e8345-61fc-4ac8-9fe9-4f938ca92e6e", "replyTo 是给模型调工具用的，不是给人的");
   assert.ok(notice.body.startsWith("Loaded the shard"), "正文要去掉头部元信息");
   assert.ok(!notice.body.includes("Reply with:"), "调用样板不该进正文");
   assert.ok(!notice.body.includes("Child intercom target"), "内部路由地址对人没有信息量");
 });
 
-test("进度更新：不等回话，没有 replyTo", () => {
+test("进度更新：没有 replyTo", () => {
   const notice = parsePiNoticeText(PROGRESS_UPDATE)!;
   assert.equal(notice.variant, "progress_update");
   assert.equal(notice.agent, "scout");
@@ -421,4 +432,24 @@ test("只接管助手消息，别的条目形态放过", () => {
   assert.equal(parsePiNoticeTimelineItem({ type: "tool_call", name: "bash" }), null);
   assert.equal(parsePiNoticeTimelineItem(null), null);
   assert.equal(parsePiNoticeTimelineItem({ type: "assistant_message" }), null);
+});
+
+test("⭐ supervisor 三种形态都不许冒充「等你操作」", () => {
+  // 回归守卫：曾经把这些标成「等你裁决 / 不回就不会往下走」，
+  // 但卡片给不出任何可点的选项 —— 因为它压根不是问人的。
+  for (const [text, variant] of [
+    [NEED_DECISION, "need_decision"],
+    [PROGRESS_UPDATE, "progress_update"],
+    [NEED_DECISION.replace(
+      "Subagent needs a supervisor decision.",
+      "Subagent requests a structured supervisor interview.",
+    ), "interview_request"],
+  ] as const) {
+    const notice = parsePiNoticeText(text)!;
+    assert.equal(notice.kind, "supervisor");
+    assert.equal(notice.variant, variant);
+    // 正文里不许残留那句工具调用样板 —— 人照着它什么也做不了
+    assert.ok(!notice.body.includes("subagent_supervisor("), "调用样板不该进卡片");
+    assert.ok(!notice.body.includes("Reply with:"));
+  }
 });

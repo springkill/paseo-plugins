@@ -150,6 +150,22 @@ Background tasks completed ({n}): **{agent}**{taskInfo}, **{agent}**{taskInfo}
 
 ## 4. `subagent_supervisor_request`（`formatChildMessage`）
 
+> ⚠️ **这不是在问用户。别做成问答卡片。**
+>
+> 正文结尾是 `Reply with: subagent_supervisor({ action: "reply", … })` —— 那是**工具调用**，
+> 只有模型能发。`native-supervisor-channel.ts` 也是把它投给 `orchestratorSessionId`
+> （父 agent）。整条链路是 subagent → 父 agent，人不参与。
+>
+> **Paseo 真正需要用户回答的提问走另一条通路**：
+> `@getpaseo/server` 的 `pi/agent.js` 里 `mapExtensionUiRequestToPermission()`
+> 把 Pi 的 extension UI 请求（`select` 等，来自 `@juicesharp/rpiv-ask-user-question`）
+> 映射成 Paseo 的**权限对话框**，那里才有真正可点的选项。
+>
+> 本插件把这一类**折叠成一行**，不给强调色、不说「等你回话」。
+> 曾经做成过「等你裁决」的样子，结果卡片给不出任何可选项 ——
+> 没有选项不是漏做了选项，是它本来就不该问你。
+
+
 ```
 {heading}
 Run: {runId}
