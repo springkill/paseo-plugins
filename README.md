@@ -22,7 +22,7 @@ paseo plugin install https://github.com/springkill/paseo-plugins:paseo-provider-
 钉版本、追更新：
 
 ```bash
-paseo plugin install https://github.com/springkill/paseo-plugins:paseo-pi-todos --ref v0.1.0
+paseo plugin install https://github.com/springkill/paseo-plugins:paseo-pi-todos --ref v0.2.0
 paseo plugin status              # 有没有新版
 paseo plugin update --all        # 追更新
 ```
