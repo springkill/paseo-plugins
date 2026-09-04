@@ -5,6 +5,8 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # 手动重跑，不用为了跑一次 CI 造一个空提交
+  workflow_dispatch:
 
 jobs:
   check:
