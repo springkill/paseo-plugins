@@ -78,7 +78,11 @@ test("⭐ client bundle 能 evaluate，且注册了全部贡献", { skip: COMPIL
     handle: () => assert.fail("client bundle 不该保留 plugin.handle —— 它引用的是 .server 代码"),
     addTimelineTransformer: (c: { id: string }) => seen.transformers.push(c.id),
     addTimelineRenderer: (c: { kind: string }) => seen.renderers.push(c.kind),
-    addWorkspacePanel: (c: { id: string }) => seen.panels.push(c.id),
+    addWorkspacePanel: (c: { id: string; locations?: string[] }) => {
+      // 少了 explorer 就回不到「跟文件树并列」那个位置
+      assert.ok(c.locations?.includes("explorer"), `面板 ${c.id} 必须支持 explorer`);
+      seen.panels.push(c.id);
+    },
     addCommandCenterItem: (c: { id: string }) => seen.commands.push(c.id),
     addClientSide: () => { seen.clientSides++; },
     addSurface: (id: string) => seen.surfaces.push(id),
@@ -100,8 +104,10 @@ test("⭐ client bundle 能 evaluate，且注册了全部贡献", { skip: COMPIL
     "native-todo-card", "pi-notice-card", "pi-subagent-card", "pi-todo-tool-card",
   ], "四个 transformer 少一个都意味着对应的卡片会退回裸文本");
   assert.deepEqual(seen.renderers.toSorted(), ["pi-notice", "pi-subagent-card", "pi-todo-board"]);
-  assert.deepEqual(seen.panels.toSorted(), ["pi-subagents"]);
-  assert.deepEqual(seen.commands.toSorted(), ["open-pi-subagents"]);
+  // ⭐ 三块功能各有一个面板 —— composer pill 点开的就是它们（explorer 里跟
+  // 文件树、git 变更树并列），不再是遮住对话的 Modal
+  assert.deepEqual(seen.panels.toSorted(), ["pi-subagents", "pi-todos", "pi-usage"]);
+  assert.deepEqual(seen.commands.toSorted(), ["open-pi-subagents", "open-pi-todos", "open-pi-usage"]);
   assert.equal(seen.clientSides, 1);
 
   // cleanup 里引用 .server 符号是另一个踩过的坑（closeProviderUsageClient）

@@ -1,11 +1,11 @@
 import {
   Icon,
   type PluginClientContext,
+  type PluginAgentPanelProps,
   type PluginComposerPillProps,
   useAgent,
   useRpc,
 } from "@getpaseo/plugin";
-import { Modal } from "@getpaseo/plugin/react-native";
 import { useQuery } from "@tanstack/react-query";
 import React, { useEffect, useState } from "react";
 import { View } from "react-native";
@@ -16,7 +16,6 @@ import { detectClientLocale, useLocale } from "./locale.client";
 import { ProviderBalancesCard } from "./balances-main.client";
 
 const PASEO_USAGE_STALE_TIME_MS = 300_000;
-const cardOpeners = new Map<string, () => void>();
 
 function providerForAgent(provider: string | undefined, model: string | null | undefined): string | null {
   if (provider && provider !== "pi") return provider;
@@ -32,7 +31,6 @@ function providerForAgent(provider: string | undefined, model: string | null | u
 function ProviderUsagePill(props: PluginComposerPillProps) {
   const { agentId, host, theme } = props;
   const { t } = useLocale(host.id);
-  const [open, setOpen] = useState(false);
   const listUsage = useRpc(providerUsageRpc);
   const agent = useAgent(agentId, ({ provider, model }) => ({ provider, model }));
   const preferredProviderId = providerForAgent(agent?.provider, agent?.model);
@@ -45,16 +43,6 @@ function ProviderUsagePill(props: PluginComposerPillProps) {
     refetchOnWindowFocus: false,
     retry: 1,
   });
-
-  useEffect(() => {
-    // A tab switch can mount a replacement before the old instance cleans up.
-    // Only remove the opener owned by this exact instance.
-    const openCard = () => setOpen(true);
-    cardOpeners.set(agentId, openCard);
-    return () => {
-      if (cardOpeners.get(agentId) === openCard) cardOpeners.delete(agentId);
-    };
-  }, [agentId]);
 
   const preferred = usageQuery.data?.providers.find((provider) => provider.providerId === preferredProviderId);
   const danger = Boolean(
@@ -70,19 +58,22 @@ function ProviderUsagePill(props: PluginComposerPillProps) {
       <View style={{ alignItems: "center", justifyContent: "center" }}>
         <Icon name="Gauge" size={15} color={color} />
       </View>
-      <Modal title={t.usage_modal_title} open={open} onOpenChange={setOpen}>
-        <Modal.Content>
-          <View style={{ padding: props.layout.compact ? 10 : 14 }}>
-            <ProviderBalancesCard
-              theme={props.theme}
-              host={props.host}
-              layout={props.layout}
-              preferredProviderId={preferredProviderId}
-            />
-          </View>
-        </Modal.Content>
-      </Modal>
     </>
+  );
+}
+
+/** Provider 用量面板 —— 与任务列表、Subagents 同在 explorer 里并列。 */
+export function ProviderUsagePanel(props: PluginAgentPanelProps) {
+  const agent = useAgent(props.agentId, ({ provider, model }) => ({ provider, model }));
+  return (
+    <View style={{ padding: props.layout.compact ? 10 : 14 }}>
+      <ProviderBalancesCard
+        theme={props.theme}
+        host={props.host}
+        layout={props.layout}
+        preferredProviderId={providerForAgent(agent?.provider, agent?.model)}
+      />
+    </View>
   );
 }
 
@@ -95,7 +86,6 @@ export function contributeProviderUsagePills(client: PluginClientContext) {
   function remove(agentId: string) {
     pills.get(agentId)?.remove();
     pills.delete(agentId);
-    cardOpeners.delete(agentId);
   }
 
   function upsert(agent: { id: string; workspaceId?: string; archivedAt?: string | null }) {
@@ -118,7 +108,9 @@ export function contributeProviderUsagePills(client: PluginClientContext) {
         agentId,
         Component: ProviderUsagePill,
         onPress() {
-          cardOpeners.get(agentId)?.();
+          // ⭐ 开侧边面板而不是 Modal —— 它跟文件树、git 变更树在同一个 explorer
+          // 容器里并列，能一直开着对照看，不遮挡对话
+          client.openPanel("pi-usage", { workspaceId, agentId });
         },
       }),
     });
@@ -142,6 +134,5 @@ export function contributeProviderUsagePills(client: PluginClientContext) {
     unsubscribe();
     for (const registration of pills.values()) registration.remove();
     pills.clear();
-    cardOpeners.clear();
   };
 }

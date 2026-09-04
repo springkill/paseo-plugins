@@ -1,12 +1,13 @@
 import {
   type PluginClientContext,
+  type PluginAgentPanelProps,
   type PluginComposerPillProps,
   type PluginTheme,
   type PluginTimelineItemProps,
   useAgent,
   useRpc,
 } from "@getpaseo/plugin";
-import { Icon, Modal } from "@getpaseo/plugin/react-native";
+import { Icon } from "@getpaseo/plugin/react-native";
 import { useQuery } from "@tanstack/react-query";
 import React, { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
@@ -155,28 +156,18 @@ export function TodoTimelineCard({ item, theme, layout, host }: PluginTimelineIt
   return <BoardView board={item.data} theme={theme} compact={layout.compact} t={t} />;
 }
 
-const cardOpeners = new Map<string, () => void>();
 
 function TodoStatusPill({ theme, host, layout, agentId }: PluginComposerPillProps) {
   const localeCtx = useLocale(host.id);
   const t = localeCtx.t;
   const latestTodo = useRpc(latestTodoRpc);
   const agentStatus = useAgent(agentId, (agent) => agent.status);
-  const [open, setOpen] = useState(false);
   const query = useQuery({
     queryKey: ["pi-todos", host.id, agentId],
     queryFn: () => latestTodo({ agentId }),
     refetchInterval: agentStatus === "running" ? 5_000 : 30_000,
     retry: 1,
   });
-
-  useEffect(() => {
-    const openCard = () => setOpen(true);
-    cardOpeners.set(agentId, openCard);
-    return () => {
-      if (cardOpeners.get(agentId) === openCard) cardOpeners.delete(agentId);
-    };
-  }, [agentId]);
 
   const board = query.data?.board;
   const live = board?.tasks.filter((task) => task.status !== "deleted") ?? [];
@@ -200,18 +191,45 @@ function TodoStatusPill({ theme, host, layout, agentId }: PluginComposerPillProp
           {label}
         </Text>
       </View>
-      <Modal title={t.modal_todos} open={open} onOpenChange={setOpen}>
-        <Modal.Content>
-          <ScrollView style={{ maxHeight: layout.compact ? 520 : 620 }} contentContainerStyle={{ padding: 12 }}>
-            {query.isLoading ? <ActivityIndicator color={theme.colors.accent} /> : null}
-            {query.error ? <Text style={{ color: theme.colors.statusDanger }}>{query.error instanceof Error ? query.error.message : String(query.error)}</Text> : null}
-            {board ? <BoardView board={board} theme={theme} compact={layout.compact} t={t} initiallyExpanded /> : null}
-            {!query.isLoading && !query.error && !board ? <Text style={{ color: theme.colors.foregroundMuted }}>{t.todo_none_for_agent}</Text> : null}
-            <LanguagePicker ctx={localeCtx} hostId={host.id} theme={theme} />
-          </ScrollView>
-        </Modal.Content>
-      </Modal>
     </>
+  );
+}
+
+/**
+ * 任务列表面板。
+ *
+ * ⭐ 点 composer pill 打开的就是这个 —— 它跟文件树、git 变更树在同一个
+ * explorer 容器里并列（宿主的 panel manifest：`files` / `changes_tree` 都是
+ * `hosts: ["explorer"]`，插件面板是 `["main","explorer"]`）。
+ * 好处是能一直开着对照看，不像 Modal 那样遮住整个对话。
+ */
+export function PiTodoPanel({ theme, host, layout, agentId }: PluginAgentPanelProps) {
+  const localeCtx = useLocale(host.id);
+  const t = localeCtx.t;
+  const latestTodo = useRpc(latestTodoRpc);
+  const agentStatus = useAgent(agentId, (agent) => agent.status);
+  const query = useQuery({
+    queryKey: ["pi-todos", host.id, agentId],
+    queryFn: () => latestTodo({ agentId }),
+    refetchInterval: agentStatus === "running" ? 5_000 : 30_000,
+    retry: 1,
+  });
+  const board = query.data?.board;
+
+  return (
+    <ScrollView contentContainerStyle={{ padding: SPACE.card, gap: SPACE.gap }}>
+      {query.isLoading ? <ActivityIndicator color={theme.colors.accent} /> : null}
+      {query.error ? (
+        <Text style={{ color: theme.colors.statusDanger, fontSize: FONT.body }}>
+          {query.error instanceof Error ? query.error.message : String(query.error)}
+        </Text>
+      ) : null}
+      {board ? <BoardView board={board} theme={theme} compact={layout.compact} t={t} initiallyExpanded /> : null}
+      {!query.isLoading && !query.error && !board ? (
+        <Text style={{ color: theme.colors.foregroundMuted, fontSize: FONT.body }}>{t.todo_none_for_agent}</Text>
+      ) : null}
+      <LanguagePicker ctx={localeCtx} hostId={host.id} theme={theme} />
+    </ScrollView>
   );
 }
 
@@ -226,7 +244,6 @@ export function contributeTodoPills(client: PluginClientContext) {
   function remove(agentId: string) {
     pills.get(agentId)?.remove();
     pills.delete(agentId);
-    cardOpeners.delete(agentId);
   }
 
   function upsert(agent: { id: string; workspaceId?: string; archivedAt?: string | null; provider?: string }) {
@@ -248,7 +265,9 @@ export function contributeTodoPills(client: PluginClientContext) {
         agentId,
         Component: TodoStatusPill,
         onPress() {
-          cardOpeners.get(agentId)?.();
+          // ⭐ 开侧边面板而不是 Modal —— 它跟文件树、git 变更树在同一个 explorer
+          // 容器里并列，能一直开着对照看，不遮挡对话
+          client.openPanel("pi-todos", { workspaceId, agentId });
         },
       }),
     });
@@ -264,6 +283,5 @@ export function contributeTodoPills(client: PluginClientContext) {
     unsubscribe();
     for (const registration of pills.values()) registration.remove();
     pills.clear();
-    cardOpeners.clear();
   };
 }

@@ -7,7 +7,7 @@ import {
   useAgent,
   useRpc,
 } from "@getpaseo/plugin";
-import { Icon, Modal } from "@getpaseo/plugin/react-native";
+import { Icon } from "@getpaseo/plugin/react-native";
 import { useQuery } from "@tanstack/react-query";
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
@@ -183,23 +183,13 @@ export function PiSubagentsPanel({ theme, host, layout, agentId }: PluginAgentPa
   );
 }
 
-const subagentOpeners = new Map<string, () => void>();
 
 function SubagentStatusPill({ theme, host, layout, agentId }: PluginComposerPillProps) {
   const localeCtx = useLocale(host.id);
   const t = localeCtx.t;
   const agent = useAgent(agentId, ({ status, title }) => ({ status, title }));
   const query = useSubagentCalls(agentId, host.id, agent?.status === "running");
-  const [open, setOpen] = useState(false);
   const { active, total } = subagentCounts(query.data?.calls);
-
-  useEffect(() => {
-    const openCard = () => setOpen(true);
-    subagentOpeners.set(agentId, openCard);
-    return () => {
-      if (subagentOpeners.get(agentId) === openCard) subagentOpeners.delete(agentId);
-    };
-  }, [agentId]);
 
   return (
     <>
@@ -209,19 +199,6 @@ function SubagentStatusPill({ theme, host, layout, agentId }: PluginComposerPill
           Subagents {active ? `${active} running / ${total}` : total}
         </Text>
       </View>
-      <Modal title={`Pi Subagents · ${agent?.title ?? agentId.slice(0, 8)}`} open={open} onOpenChange={setOpen}>
-        <Modal.Content>
-          <ScrollView style={{ maxHeight: layout.compact ? 540 : 650 }} contentContainerStyle={{ gap: 10, padding: 12 }}>
-            <Text style={{ color: theme.colors.foregroundMuted, fontSize: FONT.meta }}>{t.subagents_scoped_to(agentId)}</Text>
-            {query.isFetching && !query.data ? <ActivityIndicator color={theme.colors.accent} /> : null}
-            {query.error ? <Text style={{ color: theme.colors.statusDanger }}>{query.error instanceof Error ? query.error.message : String(query.error)}</Text> : null}
-            {query.data?.calls.map((call) => <SubagentCardView key={call.callId} call={call} theme={theme} compact={layout.compact} t={t} />)}
-            {!query.isLoading && !query.error && query.data?.calls.length === 0 ? (
-              <Text style={{ color: theme.colors.foregroundMuted }}>{t.subagents_none_current}</Text>
-            ) : null}
-          </ScrollView>
-        </Modal.Content>
-      </Modal>
     </>
   );
 }
@@ -234,7 +211,6 @@ export function contributeSubagentPills(client: PluginClientContext) {
   function remove(agentId: string) {
     pills.get(agentId)?.remove();
     pills.delete(agentId);
-    subagentOpeners.delete(agentId);
   }
   function upsert(agent: { id: string; workspaceId?: string; archivedAt?: string | null; provider?: string }) {
     const isPi = agent.provider === "pi" || agent.provider?.startsWith("pi/") === true;
@@ -255,7 +231,9 @@ export function contributeSubagentPills(client: PluginClientContext) {
         agentId,
         Component: SubagentStatusPill,
         onPress() {
-          subagentOpeners.get(agentId)?.();
+          // ⭐ 开侧边面板而不是 Modal —— 它跟文件树、git 变更树在同一个 explorer
+          // 容器里并列，能一直开着对照看，不遮挡对话
+          client.openPanel("pi-subagents", { workspaceId, agentId });
         },
       }),
     });
@@ -273,6 +251,5 @@ export function contributeSubagentPills(client: PluginClientContext) {
     unsubscribe();
     for (const registration of pills.values()) registration.remove();
     pills.clear();
-    subagentOpeners.clear();
   };
 }

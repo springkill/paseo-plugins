@@ -40,8 +40,8 @@ import { getLatestTodo } from "./server/todo.server";
 import { describeData, describeItem, drain, record } from "./ui/diag.client";
 import { PiNoticeTimelineCard } from "./ui/pi-notice.client";
 import { contributeSubagentPills, PiSubagentsPanel, SubagentTimelineCard } from "./ui/subagents.client";
-import { contributeTodoPills, TodoTimelineCard } from "./ui/todo.client";
-import { contributeProviderUsagePills } from "./ui/usage-pill.client";
+import { contributeTodoPills, PiTodoPanel, TodoTimelineCard } from "./ui/todo.client";
+import { contributeProviderUsagePills, ProviderUsagePanel } from "./ui/usage-pill.client";
 
 /**
  * ⭐⭐ 必须先把 `undefined` 的键清掉，否则整条通知会静默退回裸文本。
@@ -110,6 +110,27 @@ export default function contribute(plugin: PluginContext) {
     schema: TodoBoardSchema,
     Component: TodoTimelineCard,
   });
+  // ⭐ 三块功能的面板都注册 ["workspace","explorer"] —— explorer 就是文件树、
+  // git 变更树所在的那个容器（宿主 panel manifest 里它们是 hosts:["explorer"]），
+  // 所以点 composer pill 打开的是侧边标签页，而不是遮住对话的 Modal。
+  plugin.addWorkspacePanel({
+    id: "pi-todos",
+    title: t.modal_todos,
+    icon: "ListTodo",
+    context: "agent",
+    locations: ["workspace", "explorer"],
+    Component: PiTodoPanel,
+  });
+  plugin.addCommandCenterItem({
+    id: "open-pi-todos",
+    title: t.nav_open_todos,
+    icon: "ListTodo",
+    keywords: ["pi", "todo", "tasks", "任务"],
+    context: "agent",
+    onSelect({ openPanel }) {
+      openPanel("pi-todos");
+    },
+  });
 
   // ── Subagents ────────────────────────────────────────────────────
   plugin.addTimelineTransformer({
@@ -169,6 +190,25 @@ export default function contribute(plugin: PluginContext) {
     version: 1,
     schema: PiNoticeSchema,
     Component: PiNoticeTimelineCard,
+  });
+
+  plugin.addWorkspacePanel({
+    id: "pi-usage",
+    title: t.usage_modal_title,
+    icon: "Gauge",
+    context: "agent",
+    locations: ["workspace", "explorer"],
+    Component: ProviderUsagePanel,
+  });
+  plugin.addCommandCenterItem({
+    id: "open-pi-usage",
+    title: t.usage_nav_open_usage,
+    icon: "Gauge",
+    keywords: ["provider", "usage", "balance", "quota", "用量", "余额"],
+    context: "agent",
+    onSelect({ openPanel }) {
+      openPanel("pi-usage");
+    },
   });
 
   // ── composer pill ────────────────────────────────────────────────
