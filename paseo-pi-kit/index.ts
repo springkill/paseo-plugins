@@ -22,6 +22,7 @@ import {
   localeRpc,
   PiNoticeSchema,
   providerUsageRpc,
+  diagRpc,
   setLocaleRpc,
   SubagentCallSchema,
   subagentCallsRpc,
@@ -32,10 +33,11 @@ import { resolveLocale } from "./domain/locale.shared";
 import { parsePiNoticeTimelineItem } from "./domain/pi-notice-parser.shared";
 import { parseSubagentTimelineItem } from "./domain/subagent-parser.shared";
 import { parseTodoTimelineItem } from "./domain/todo-parser.shared";
-import { getLocale, setLocale } from "./server/locale.server";
+import { getLocale, reportDiag, setLocale } from "./server/locale.server";
 import { closeProviderUsageClient, listProviderUsage } from "./server/provider-usage.server";
 import { listSubagentCalls } from "./server/subagents.server";
 import { getLatestTodo } from "./server/todo.server";
+import { describeItem, drain, record } from "./ui/diag.client";
 import { PiNoticeTimelineCard } from "./ui/pi-notice.client";
 import { contributeSubagentPills, PiSubagentsPanel, SubagentTimelineCard } from "./ui/subagents.client";
 import { contributeTodoPills, TodoTimelineCard } from "./ui/todo.client";
@@ -54,6 +56,7 @@ export default function contribute(plugin: PluginContext) {
   plugin.handle(providerUsageRpc, listProviderUsage);
   plugin.handle(localeRpc, getLocale);
   plugin.handle(setLocaleRpc, setLocale);
+  plugin.handle(diagRpc, reportDiag);
 
   // ── 任务列表 ─────────────────────────────────────────────────────
   // Pi 的 todo 工具调用
@@ -127,6 +130,7 @@ export default function contribute(plugin: PluginContext) {
     query: { itemType: "assistant_message" },
     transform({ item }) {
       const notice = parsePiNoticeTimelineItem(item);
+      record(`notice ${describeItem(item)} matched=${!!notice}`);
       if (!notice) return;
       return { items: [{ type: "plugin", kind: "pi-notice", version: 1, data: timelineData(notice) }] };
     },
@@ -140,12 +144,19 @@ export default function contribute(plugin: PluginContext) {
 
   // ── composer pill ────────────────────────────────────────────────
   plugin.addClientSide((client) => {
+    // ⛔ 临时诊断：定时把探针记录送回服务端
+    record("clientSide 启动");
+    const timer = setInterval(() => {
+      const lines = drain();
+      if (lines.length) void client.rpc(diagRpc, { lines }).catch(() => {});
+    }, 3000);
     const cleanups = [
       contributeTodoPills(client),
       contributeSubagentPills(client),
       contributeProviderUsagePills(client),
     ];
     return () => {
+      clearInterval(timer);
       for (const cleanup of cleanups.reverse()) cleanup();
     };
   });

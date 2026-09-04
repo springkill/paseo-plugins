@@ -66,3 +66,10 @@ export async function setLocale(input: ZodOutput<typeof setLocaleRpc.input>) {
   if (!lockedByEnv(process.env, ENV_KEY)) await writeSharedLocale(input.preference);
   return snapshot(input.clientLocale);
 }
+
+
+/** ⛔ 临时诊断：把客户端探针的记录打进 daemon 日志。定位完删掉。 */
+export function reportDiag(input: { lines: string[] }): { ok: boolean } {
+  for (const line of input.lines) console.log(`[pi-kit diag] ${line}`);
+  return { ok: true };
+}

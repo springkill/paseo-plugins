@@ -3,6 +3,13 @@ import { z } from "zod";
 import { LOCALES } from "./locale.shared";
 
 export const LocaleSchema = z.enum(LOCALES);
+
+/** ⛔ 临时诊断通道，定位完删掉。见 ui/diag.client.ts。 */
+export const diagRpc = defineRpc({
+  name: "pi-kit.diag",
+  input: z.object({ lines: z.array(z.string().max(400)).max(80) }),
+  output: z.object({ ok: z.boolean() }),
+});
 export const LocalePreferenceSchema = z.enum(["auto", ...LOCALES]);
 
 /**
