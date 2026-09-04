@@ -11,7 +11,8 @@
  *
  * - 后台任务：名字 + 终态 + 退出码。输出路径次要，小字。
  * - workflow / 完成：终态 + 每个子任务各自的输出，而不是一坨 JSON。
- * - 等你裁决：最重的一档 —— 它真的卡在那儿不动了，所以给强调色和一句明话。
+ * - 需要关注：留警示色（长跑 / 卡住值得一眼看到），但不给强调边框 ——
+ *   它是发给父 agent 的，不是你的待办。
  * - 进度更新 / 抓取完成：最轻，一行带过。
  * - 仅模型可见（goal 契约、压缩提示）：折成一行灰字，默认不展开。
  *
@@ -19,16 +20,36 @@
  * 内部路由地址（`Child intercom target`）、给模型抄的工具调用
  * （`subagent({ action: "steer", … })`、`Reply with: …`）、
  * 以及 `guidance` 那种「不要 poll」的模型操作指令。
+ *
+ * ⭐ 结构化数据（`Structured output:` / workflow `Return:`）不在这里画，
+ * 交给 `ui/structured.client.tsx` —— 那边先认形状再画，不是画 JSON 树。
  */
 
 import { type PluginTheme, type PluginTimelineItemProps } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/react-native";
-import React, { useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import React, { useMemo, useState } from "react";
+import { Text, View } from "react-native";
 import type { PiChildOutput, PiCompletionEntry, PiNotice } from "../domain/contracts.shared";
 import type { Translator } from "../domain/i18n.shared";
+import { buildStructuredView } from "../domain/structured-view.shared";
 import { useLocale } from "./locale.client";
-import { CardHeader, CardShell, CardTitle, Chip, FONT, LINE, RADIUS, SPACE } from "./tokens.client";
+import { StructuredBlock } from "./structured.client";
+import {
+  CardHeader,
+  CardShell,
+  CardTitle,
+  Chip,
+  ExpandToggle,
+  ICON,
+  KeyValue,
+  MetaRow,
+  Mono,
+  RowShell,
+  SPACE,
+  SectionTitle,
+  text,
+  type Tone,
+} from "./tokens.client";
 
 /** 正文超过这个长度就折起来 —— 子任务输出动辄几千字。 */
 const COLLAPSE_OVER = 320;
@@ -66,10 +87,9 @@ function headline(notice: PiNotice, t: Translator): string {
   }
 }
 
-function visuals(notice: PiNotice, theme: PluginTheme) {
+function visuals(notice: PiNotice, theme: PluginTheme): { icon: string; color: string; accent: boolean } {
   // ⭐ supervisor 不在这里 —— 它不是问你，见下面 COLLAPSED 的说明。
-  // 只有「需要关注」是真的停住并且要人介入。
-  // ⚠️ 留警示色（长跑/卡住值得一眼看到），但不给强调边框：
+  // ⚠️ 留警示色（长跑 / 卡住值得一眼看到），但不给强调边框：
   // 这条是发给父 agent 的，不是你的待办
   if (notice.kind === "control" && notice.variant !== "failed") {
     return { icon: "TriangleAlert", color: theme.colors.statusWarning, accent: false };
@@ -108,128 +128,87 @@ function statusLabel(notice: PiNotice, t: Translator): string | null {
   }
 }
 
-function Mono({ text, theme }: { text: string; theme: PluginTheme }) {
-  return (
-    <Text selectable numberOfLines={1} style={{ color: theme.colors.foregroundMuted, fontFamily: "monospace", fontSize: FONT.chip }}>
-      {text}
-    </Text>
-  );
+function statusTone(status: PiNotice["status"]): Tone | undefined {
+  if (status === "failed") return "danger";
+  if (status === "completed") return "ok";
+  if (status === "paused" || status === "stopped" || status === "timed_out" || status === "attention") return "warning";
+  return undefined;
 }
 
-function Labelled({ label, value, theme }: { label: string; value: string; theme: PluginTheme }) {
+/** 长文本折叠。卡片里有四处要这个行为，别各写各的。 */
+function Body({ body, theme, t, tone }: { body: string; theme: PluginTheme; t: Translator; tone?: Tone }) {
+  const [expanded, setExpanded] = useState(false);
+  const long = body.length > COLLAPSE_OVER;
+  const shown = expanded || !long ? body : `${body.slice(0, COLLAPSE_OVER)}…`;
   return (
-    <Text style={{ color: theme.colors.foregroundMuted, fontSize: FONT.body, lineHeight: LINE.body }}>
-      {label}: {value}
-    </Text>
-  );
-}
-
-/** 值太长就截断 —— 哈希、路径动辄上百字符。 */
-function short(value: string, max = 120): string {
-  return value.length > max ? `${value.slice(0, max)}…` : value;
-}
-
-/**
- * 结构化输出的渲染。
- *
- * ⭐ 这就是这个插件最初要解决的东西：Pi 的 `Structured output:` 和 workflow
- * `Return:` 会往正文里塞一坨 `JSON.stringify(v, null, 2)`，Paseo 当普通文本渲染，
- * 于是用户看到一堵墙。这里按结构铺开：标量一行一条，嵌套折进去。
- */
-function JsonNode({ label, value, theme, depth }: {
-  label?: string;
-  value: unknown;
-  theme: PluginTheme;
-  depth: number;
-}) {
-  const [open, setOpen] = useState(depth < 1);
-  const key = label ? (
-    <Text style={{ color: theme.colors.foregroundMuted, fontSize: FONT.meta, fontWeight: "700" }}>{label}</Text>
-  ) : null;
-
-  if (value === null || typeof value !== "object") {
-    const text = typeof value === "string" ? value : JSON.stringify(value);
-    return (
-      <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap", alignItems: "flex-start" }}>
-        {key}
-        <Text selectable style={{ color: theme.colors.foreground, fontSize: FONT.body, lineHeight: LINE.body, flex: 1 }}>
-          {short(text ?? "null", 400)}
-        </Text>
-      </View>
-    );
-  }
-
-  const entries: Array<[string, unknown]> = Array.isArray(value)
-    ? value.map((entry, index) => [`[${index}]`, entry])
-    : Object.entries(value as Record<string, unknown>);
-  if (entries.length === 0) {
-    return (
-      <View style={{ flexDirection: "row", gap: 6 }}>
-        {key}
-        <Text style={{ color: theme.colors.foregroundMuted, fontSize: FONT.meta }}>
-          {Array.isArray(value) ? "[]" : "{}"}
-        </Text>
-      </View>
-    );
-  }
-
-  return (
-    <View style={{ gap: 3 }}>
-      <Pressable accessibilityRole="button" onPress={() => setOpen((v) => !v)}>
-        <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
-          <Icon name={open ? "ChevronDown" : "ChevronRight"} size={12} color={theme.colors.foregroundMuted} />
-          {key}
-          <Text style={{ color: theme.colors.foregroundMuted, fontSize: FONT.chip }}>
-            {Array.isArray(value) ? `${entries.length} 项` : `${entries.length}`}
-          </Text>
-        </View>
-      </Pressable>
-      {open ? (
-        <View style={{ gap: 4, paddingLeft: 10, borderLeftWidth: 1, borderLeftColor: theme.colors.border }}>
-          {entries.map(([childKey, childValue]) => (
-            <JsonNode key={childKey} label={childKey} value={childValue} theme={theme} depth={depth + 1} />
-          ))}
-        </View>
+    <View style={{ gap: SPACE.tight }}>
+      <Text selectable style={text(theme, "body", tone ? { tone } : {})}>{shown}</Text>
+      {long ? (
+        <ExpandToggle
+          expanded={expanded}
+          onPress={() => setExpanded((value) => !value)}
+          theme={theme}
+          moreLabel={t.notice_expand}
+          lessLabel={t.notice_collapse}
+        />
       ) : null}
     </View>
   );
+}
+
+/**
+ * 文本里恰好是一坨 JSON 时按结构画，否则当散文。
+ *
+ * ⭐ 子任务的 `Preview:` 经常就是 `JSON.stringify` 的产物（实测 `seed-scout`
+ * 那条整段是 JSON）。当散文倒出来就又回到「一堵墙」了。
+ */
+function useMaybeStructured(body: string | undefined): unknown | undefined {
+  return useMemo(() => {
+    const trimmed = body?.trim();
+    if (!trimmed || (!trimmed.startsWith("{") && !trimmed.startsWith("["))) return undefined;
+    try {
+      const value: unknown = JSON.parse(trimmed);
+      return value !== null && typeof value === "object" ? value : undefined;
+    } catch {
+      return undefined;
+    }
+  }, [body]);
+}
+
+function MaybeStructuredBody({ body, theme, t, tone }: {
+  body: string;
+  theme: PluginTheme;
+  t: Translator;
+  tone?: Tone;
+}) {
+  const structured = useMaybeStructured(body);
+  const view = useMemo(() => (structured === undefined ? null : buildStructuredView(structured)), [structured]);
+  if (view) return <StructuredBlock view={view} theme={theme} t={t} />;
+  return <Body body={body} theme={theme} t={t} {...(tone ? { tone } : {})} />;
 }
 
 /** 一个子任务的输出。⭐ 这一块就是原来那坨 JSON 该变成的样子。 */
 function ChildOutput({ child, theme, t }: { child: PiChildOutput; theme: PluginTheme; t: Translator }) {
-  const [expanded, setExpanded] = useState(false);
-  const preview = child.preview ?? "";
-  const long = preview.length > COLLAPSE_OVER;
-  const shown = expanded || !long ? preview : `${preview.slice(0, COLLAPSE_OVER)}…`;
   const failed = child.status !== undefined && child.status !== "completed";
-
+  const tone: Tone | undefined = failed ? "danger" : undefined;
   return (
-    <View style={{ gap: 3, paddingLeft: 8, borderLeftWidth: 2, borderLeftColor: failed ? theme.colors.statusDanger : theme.colors.border }}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-        <Text style={{ color: theme.colors.foreground, fontSize: FONT.rowTitle, fontWeight: "700" }}>
+    <RowShell theme={theme} {...(tone ? { tone } : {})}>
+      <MetaRow>
+        <Text style={text(theme, "rowTitle", { flex: 1 })}>
           {child.key ?? child.runId?.slice(0, 8) ?? "—"}
         </Text>
-        {child.status ? <Chip text={child.status} theme={theme} tone={failed ? "danger" : undefined} /> : null}
-        {child.runId && child.key ? <Mono text={child.runId.slice(0, 8)} theme={theme} /> : null}
-      </View>
-      {shown ? (
-        <Text selectable style={{ color: theme.colors.foreground, fontSize: FONT.body, lineHeight: LINE.body }}>
-          {shown}
-        </Text>
+        {child.status ? <Chip text={child.status} theme={theme} {...(tone ? { tone } : {})} /> : null}
+        {child.runId && child.key ? <Mono label={child.runId.slice(0, 8)} theme={theme} /> : null}
+      </MetaRow>
+      {child.preview ? (
+        <MaybeStructuredBody body={child.preview} theme={theme} t={t} />
       ) : child.previewUnavailable ? (
-        <Text style={{ color: theme.colors.foregroundMuted, fontSize: FONT.meta, fontStyle: "italic" }}>
+        <Text style={text(theme, "meta", { muted: true, italic: true })}>
           {t.notice_no_preview(child.previewUnavailable)}
         </Text>
       ) : null}
-      {child.savedOutputPath ? <Mono text={`${t.notice_saved_output}: ${child.savedOutputPath}`} theme={theme} /> : null}
-      {long ? (
-        <Pressable accessibilityRole="button" onPress={() => setExpanded((value) => !value)} style={{ alignSelf: "flex-start", paddingVertical: 2 }}>
-          <Text style={{ color: theme.colors.accent, fontSize: FONT.meta, fontWeight: "700" }}>
-            {expanded ? t.notice_collapse : t.notice_expand}
-          </Text>
-        </Pressable>
-      ) : null}
-    </View>
+      {child.savedOutputPath ? <Mono label={`${t.notice_saved_output}: ${child.savedOutputPath}`} theme={theme} /> : null}
+    </RowShell>
   );
 }
 
@@ -240,22 +219,23 @@ function CompletionBlock({ entry, showAgent, theme, t }: {
   theme: PluginTheme;
   t: Translator;
 }) {
-  const [expanded, setExpanded] = useState(false);
-  const long = entry.summary.length > COLLAPSE_OVER;
-  const summary = expanded || !long ? entry.summary : `${entry.summary.slice(0, COLLAPSE_OVER)}…`;
-  const failedChildren = entry.childOutputs.filter((c) => c.status && c.status !== "completed").length;
+  const failedChildren = entry.childOutputs.filter((child) => child.status && child.status !== "completed").length;
+  const structuredView = useMemo(
+    () => (entry.structured === undefined ? null : buildStructuredView(entry.structured)),
+    [entry.structured],
+  );
 
   return (
-    <View style={{ gap: 6 }}>
+    <View style={{ gap: SPACE.gap }}>
       {showAgent ? (
-        <Text style={{ color: theme.colors.foreground, fontSize: FONT.rowTitle, fontWeight: "800" }}>
+        <Text style={text(theme, "rowTitle")}>
           {entry.agent}{entry.taskInfo ? ` ${entry.taskInfo}` : ""}
         </Text>
       ) : null}
 
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+      <MetaRow>
         {entry.workflow?.childCount !== undefined
-          ? <Chip text={t.notice_child_runs(entry.workflow.childCount)} theme={theme} tone={failedChildren ? "warning" : undefined} />
+          ? <Chip text={t.notice_child_runs(entry.workflow.childCount)} theme={theme} {...(failedChildren ? { tone: "warning" as const } : {})} />
           : entry.childRuns.length
             ? <Chip text={t.notice_child_runs(entry.childRuns.length)} theme={theme} />
             : null}
@@ -263,30 +243,20 @@ function CompletionBlock({ entry, showAgent, theme, t }: {
           ? <Chip text={t.notice_trace(entry.workflow.traceEvents)} theme={theme} />
           : null}
         {entry.schedule ? <Chip text={t.notice_schedule(entry.schedule.name ?? entry.schedule.id)} theme={theme} /> : null}
-        {entry.workflowRunId ? <Mono text={`${t.notice_run} ${entry.workflowRunId.slice(0, 8)}`} theme={theme} /> : null}
-      </View>
+        {entry.workflowRunId ? <Mono label={`${t.notice_run} ${entry.workflowRunId.slice(0, 8)}`} theme={theme} /> : null}
+      </MetaRow>
 
-      {summary ? (
-        <Text selectable style={{ color: theme.colors.foreground, fontSize: FONT.body, lineHeight: LINE.body }}>
-          {summary}
-        </Text>
-      ) : null}
-      {long ? (
-        <Pressable accessibilityRole="button" onPress={() => setExpanded((value) => !value)} style={{ alignSelf: "flex-start", paddingVertical: 2 }}>
-          <Text style={{ color: theme.colors.accent, fontSize: FONT.meta, fontWeight: "700" }}>
-            {expanded ? t.notice_collapse : t.notice_expand}
-          </Text>
-        </Pressable>
-      ) : null}
+      {entry.summary ? <MaybeStructuredBody body={entry.summary} theme={theme} t={t} /> : null}
 
-      {entry.structured !== undefined ? (
-        <View style={{ gap: SPACE.tight, padding: SPACE.gap, borderRadius: RADIUS.inner, backgroundColor: theme.colors.surface2 ?? theme.colors.surface1 }}>
-          <JsonNode value={entry.structured} theme={theme} depth={0} />
+      {structuredView ? (
+        <View style={{ gap: SPACE.tight }}>
+          <SectionTitle label={t.notice_structured_title} theme={theme} />
+          <StructuredBlock view={structuredView} theme={theme} t={t} />
         </View>
       ) : null}
 
       {entry.structuredTruncated ? (
-        <Text style={{ color: theme.colors.foregroundMuted, fontSize: FONT.meta, fontStyle: "italic" }}>
+        <Text style={text(theme, "meta", { muted: true, italic: true })}>
           {t.notice_structured_truncated}
         </Text>
       ) : null}
@@ -296,26 +266,24 @@ function CompletionBlock({ entry, showAgent, theme, t }: {
       ))}
 
       {entry.omittedPreviews ? (
-        <Text style={{ color: theme.colors.foregroundMuted, fontSize: FONT.meta }}>
+        <Text style={text(theme, "meta", { muted: true })}>
           {t.notice_omitted_previews(entry.omittedPreviews)}
         </Text>
       ) : null}
 
       {/* 子任务没有输出，但返回值预览确实被丢过 —— 说明白，别让人以为卡片坏了 */}
-      {entry.workflow?.returnTruncated && entry.childOutputs.length > 0 && !summary ? (
-        <Text style={{ color: theme.colors.foregroundMuted, fontSize: FONT.meta, fontStyle: "italic" }}>
+      {entry.workflow?.returnTruncated && entry.childOutputs.length > 0 && !entry.summary && !structuredView ? (
+        <Text style={text(theme, "meta", { muted: true, italic: true })}>
           {t.notice_return_dropped}
         </Text>
       ) : null}
 
       {entry.workflow?.notes.map((note) => (
-        <Text key={note} style={{ color: theme.colors.foregroundMuted, fontSize: FONT.meta, lineHeight: LINE.meta }}>
-          {note}
-        </Text>
+        <Text key={note} style={text(theme, "meta", { muted: true })}>{note}</Text>
       ))}
 
-      {entry.handoffPath ? <Mono text={`${t.notice_handoff}: ${entry.handoffPath}`} theme={theme} /> : null}
-      {entry.session ? <Mono text={entry.session.value} theme={theme} /> : null}
+      {entry.handoffPath ? <Mono label={`${t.notice_handoff}: ${entry.handoffPath}`} theme={theme} /> : null}
+      {entry.session ? <Mono label={entry.session.value} theme={theme} /> : null}
     </View>
   );
 }
@@ -328,8 +296,6 @@ export function PiNoticeCard({ notice, theme, t }: {
   const [expanded, setExpanded] = useState(false);
   const look = visuals(notice, theme);
   const status = statusLabel(notice, t);
-  const long = notice.body.length > COLLAPSE_OVER;
-  const body = expanded || !long ? notice.body : `${notice.body.slice(0, COLLAPSE_OVER)}…`;
 
   // ⭐ 折成一行的两类：
   //
@@ -342,43 +308,48 @@ export function PiNoticeCard({ notice, theme, t }: {
   //   而是它本来就不该问你。
   if (notice.kind === "model_only" || notice.kind === "supervisor") {
     return (
-      <View style={{ gap: SPACE.tight, padding: SPACE.row, borderRadius: RADIUS.card, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surface1, opacity: 0.75 }}>
-        <Pressable accessibilityRole="button" onPress={() => setExpanded((value) => !value)}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <Icon name={look.icon} size={14} color={look.color} />
-            <Text style={{ color: theme.colors.foregroundMuted, fontSize: FONT.rowTitle, flex: 1 }}>
+      <View style={{ opacity: 0.75 }}>
+        <CardShell theme={theme} compact>
+          <CardHeader
+            trailing={
+              <ExpandToggle
+                expanded={expanded}
+                onPress={() => setExpanded((value) => !value)}
+                theme={theme}
+                moreLabel={t.notice_expand}
+                lessLabel={t.notice_collapse}
+              />
+            }
+          >
+            <Icon name={look.icon} size={ICON.row} color={look.color} />
+            <Text numberOfLines={1} style={text(theme, "rowTitle", { muted: true, flex: 1 })}>
               {headline(notice, t)}
             </Text>
-            <Text style={{ color: theme.colors.accent, fontSize: FONT.meta, fontWeight: "700" }}>
-              {expanded ? t.notice_collapse : t.notice_expand}
-            </Text>
-          </View>
-        </Pressable>
-        {expanded ? (
-          <>
-            <Text style={{ color: theme.colors.foregroundMuted, fontSize: FONT.meta, lineHeight: LINE.meta }}>
-              {notice.kind === "supervisor" ? t.notice_supervisor_body : t.notice_model_only_body}
-            </Text>
-            <Text selectable style={{ color: theme.colors.foreground, fontSize: FONT.body, lineHeight: LINE.body }}>
-              {notice.body}
-            </Text>
-          </>
-        ) : null}
+          </CardHeader>
+          {expanded ? (
+            <>
+              <Text style={text(theme, "meta", { muted: true })}>
+                {notice.kind === "supervisor" ? t.notice_supervisor_body : t.notice_model_only_body}
+              </Text>
+              <Text selectable style={text(theme, "body")}>{notice.body}</Text>
+            </>
+          ) : null}
+        </CardShell>
       </View>
     );
   }
 
   return (
-    <CardShell theme={theme} accentColor={look.accent ? look.color : undefined}>
+    <CardShell theme={theme} {...(look.accent ? { accentColor: look.color } : {})}>
       <CardHeader
-        trailing={status ? <Chip text={status} theme={theme} tone={notice.status === "failed" ? "danger" : undefined} /> : null}
+        trailing={status ? <Chip text={status} theme={theme} {...(statusTone(notice.status) ? { tone: statusTone(notice.status)! } : {})} /> : null}
       >
-        <Icon name={look.icon} size={16} color={look.color} />
-        <CardTitle text={headline(notice, t)} theme={theme} />
+        <Icon name={look.icon} size={ICON.card} color={look.color} />
+        <CardTitle label={headline(notice, t)} theme={theme} />
       </CardHeader>
 
       {/* 元信息一行带过，不占主视线 */}
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+      <MetaRow>
         {notice.kind === "background_task" && notice.exitCode !== undefined && notice.exitCode !== 0
           ? <Chip text={t.notice_exit_code(notice.exitCode)} theme={theme} tone="danger" />
           : null}
@@ -387,28 +358,28 @@ export function PiNoticeCard({ notice, theme, t }: {
         {notice.step !== undefined ? <Chip text={t.notice_step(notice.step)} theme={theme} /> : null}
         {notice.fetched ? <Chip text={t.notice_fetched(notice.fetched.done, notice.fetched.total)} theme={theme} /> : null}
         {notice.outcome ? <Chip text={notice.outcome} theme={theme} /> : null}
-        {notice.runId ? <Mono text={`${t.notice_run} ${notice.runId.slice(0, 8)}`} theme={theme} /> : null}
-      </View>
+        {notice.runId ? <Mono label={`${t.notice_run} ${notice.runId.slice(0, 8)}`} theme={theme} /> : null}
+      </MetaRow>
 
-      {notice.error ? (
-        <Text selectable style={{ color: theme.colors.statusDanger, fontSize: FONT.body, lineHeight: LINE.body }}>
-          {notice.error}
-        </Text>
+      {notice.error ? <Body body={notice.error} theme={theme} t={t} tone="danger" /> : null}
+      {notice.signal ? (
+        <KeyValue label={t.notice_signal} theme={theme} stacked>
+          <Text selectable style={text(theme, "body")}>{notice.signal}</Text>
+        </KeyValue>
       ) : null}
-      {notice.signal ? <Labelled label={t.notice_signal} value={notice.signal} theme={theme} /> : null}
-      {notice.recentFailures ? <Labelled label={t.notice_recent_failures} value={notice.recentFailures} theme={theme} /> : null}
+      {notice.recentFailures ? (
+        <KeyValue label={t.notice_recent_failures} theme={theme} stacked>
+          <Text selectable style={text(theme, "body")}>{notice.recentFailures}</Text>
+        </KeyValue>
+      ) : null}
 
       {notice.facts.length ? (
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+        <MetaRow>
           {notice.facts.map((fact) => <Chip key={fact} text={fact} theme={theme} />)}
-        </View>
+        </MetaRow>
       ) : null}
 
-      {body ? (
-        <Text selectable style={{ color: theme.colors.foreground, fontSize: FONT.body, lineHeight: LINE.body }}>
-          {body}
-        </Text>
-      ) : null}
+      {notice.body ? <MaybeStructuredBody body={notice.body} theme={theme} t={t} /> : null}
 
       {notice.entries.map((entry, index) => (
         <CompletionBlock
@@ -420,22 +391,11 @@ export function PiNoticeCard({ notice, theme, t }: {
         />
       ))}
 
-
       {notice.kind === "control" ? (
-        <Text style={{ color: theme.colors.foregroundMuted, fontSize: FONT.meta, lineHeight: LINE.meta }}>
-          {t.notice_control_body}
-        </Text>
+        <Text style={text(theme, "meta", { muted: true })}>{t.notice_control_body}</Text>
       ) : null}
 
-      {notice.outputFile ? <Mono text={`${t.notice_output_file}: ${notice.outputFile}`} theme={theme} /> : null}
-
-      {long ? (
-        <Pressable accessibilityRole="button" onPress={() => setExpanded((value) => !value)} style={{ alignSelf: "flex-start", paddingVertical: 2 }}>
-          <Text style={{ color: theme.colors.accent, fontSize: FONT.meta, fontWeight: "700" }}>
-            {expanded ? t.notice_collapse : t.notice_expand}
-          </Text>
-        </Pressable>
-      ) : null}
+      {notice.outputFile ? <Mono label={`${t.notice_output_file}: ${notice.outputFile}`} theme={theme} /> : null}
     </CardShell>
   );
 }

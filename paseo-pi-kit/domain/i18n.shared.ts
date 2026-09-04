@@ -40,6 +40,13 @@ const CATALOG = {
     en: `Show all ${n}`,
   }),
   todo_collapse: { zh: "收起任务列表", en: "Collapse" },
+  todo_blocked_by: (ids: string) => ({ zh: `依赖 ${ids}`, en: `Blocked by ${ids}` }),
+  todo_pill_idle: { zh: "Pi 任务", en: "Pi tasks" },
+  todo_pill_loading: { zh: "Pi 任务…", en: "Pi tasks…" },
+  todo_progress: (done: number, total: number) => ({
+    zh: `${done}/${total} 完成`,
+    en: `${done}/${total} done`,
+  }),
 
   // ── 任务动作（来自 Pi 的 todo 工具）─────────────────────────────
   action_create: (suffix: string) => ({ zh: `新增任务${suffix}`, en: `Added task${suffix}` }),
@@ -85,6 +92,15 @@ const CATALOG = {
   subagents_no_output: { zh: "没有输出", en: "No output" },
   subagents_expand_output: { zh: "展开子任务输出", en: "Show subtask output" },
   subagents_collapse_output: { zh: "收起子任务输出", en: "Hide subtask output" },
+  subagents_card_title: (kind: string) => ({ zh: `Pi Subagent · ${kind}`, en: `Pi Subagent · ${kind}` }),
+  subagents_children: (n: number) => ({ zh: `${n} 个子任务`, en: `${n} child${n === 1 ? "" : "ren"}` }),
+  subagents_mission: { zh: "Mission", en: "Mission" },
+  subagents_acceptance: { zh: "验收", en: "Acceptance" },
+  subagents_residual_risks: { zh: "残余风险", en: "Residual risks" },
+  subagents_pill: (active: number, total: number) => ({
+    zh: active ? `Subagents ${active}/${total} 运行中` : `Subagents ${total}`,
+    en: active ? `Subagents ${active}/${total} running` : `Subagents ${total}`,
+  }),
 
   // ── Pi 通知卡片 ─────────────────────────────────────────────────
   // 每种通知对应 Pi 哪个插件的哪个函数，见 docs/pi-message-formats.md
@@ -172,6 +188,21 @@ const CATALOG = {
   notice_expand: { zh: "展开全文", en: "Show full text" },
   notice_collapse: { zh: "收起", en: "Collapse" },
 
+  // ── 结构化数据 ──────────────────────────────────────────────────
+  // ⚠️ 数据里的**键名**不走这里 —— 那是生产方写死的英文标识符，
+  // 翻译它只会让人对不上原始数据。见 domain/structured-view.shared.ts。
+  struct_yes: { zh: "是", en: "Yes" },
+  struct_no: { zh: "否", en: "No" },
+  struct_show_all: (n: number) => ({ zh: `展开全部 ${n} 条`, en: `Show all ${n}` }),
+  struct_empty_fields: (labels: string) => ({
+    zh: `空字段：${labels}`,
+    en: `Empty: ${labels}`,
+  }),
+  struct_count_ok: (n: number) => ({ zh: `${n} 通过`, en: `${n} passed` }),
+  struct_count_failed: (n: number) => ({ zh: `${n} 失败`, en: `${n} failed` }),
+  struct_count_other: (n: number) => ({ zh: `${n} 其他`, en: `${n} other` }),
+  notice_structured_title: { zh: "结构化输出", en: "Structured output" },
+
   // ── provider 用量 / 余额 ────────────────────────────────────────
   usage_nav_open_usage: { zh: "打开 provider 用量", en: "Open provider usage" },
   usage_modal_title: { zh: "Provider 用量", en: "Provider Usage" },
@@ -196,6 +227,13 @@ const CATALOG = {
     zh: `${show ? "隐藏" : "显示"}不可用的 provider（${n}）`,
     en: `${show ? "Hide" : "Show"} unavailable providers (${n})`,
   }),
+  usage_subtitle: { zh: "Paseo 原生用量 · 缓存 5 分钟", en: "Paseo native usage · 5 minute cache" },
+  usage_resets: (when: string) => ({ zh: `${when} 重置`, en: `Resets ${when}` }),
+  usage_runs_out: (when: string) => ({ zh: `预计 ${when} 用尽`, en: `Runs out ${when}` }),
+  usage_remaining: (value: string) => ({ zh: `剩余 ${value}`, en: `${value} remaining` }),
+  usage_used_pct: (n: number) => ({ zh: `已用 ${n}%`, en: `${n}% used` }),
+  usage_left_pct: (n: number) => ({ zh: `剩余 ${n}%`, en: `${n}% left` }),
+  usage_fetched: (when: string) => ({ zh: `${when} 获取`, en: `Fetched ${when}` }),
 
   // ── 语言 ────────────────────────────────────────────────────────
 

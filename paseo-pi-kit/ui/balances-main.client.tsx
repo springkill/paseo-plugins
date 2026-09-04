@@ -1,28 +1,48 @@
+/**
+ * Provider 用量 / 余额。
+ *
+ * 视觉全部走 `ui/tokens.client.tsx`。这张卡片原本的问题最多：
+ *
+ * - 卡片边框用 `foregroundMuted`（**前景色**当边框），深色主题上比内容还亮
+ * - 9 处 `<Text>` 没写字号
+ * - 面板写死 `height: 500 / 580` —— 开在 explorer 侧栏里要么留白要么被截
+ * - `Resets` / `Runs out` / `remaining` / `Fetched` 是硬编码英文，没进 i18n
+ */
+
 import type { PluginHostProps, PluginTheme } from "@getpaseo/plugin";
 import { useRpc } from "@getpaseo/plugin";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { output as ZodOutput } from "zod";
 import React, { useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Text, View } from "react-native";
 import { providerUsageRpc } from "../domain/contracts.shared";
 import type { Translator } from "../domain/i18n.shared";
 import { LanguagePicker, useLocale } from "./locale.client";
-import { FONT, LINE, ProgressBar, RADIUS, toneColor, type Tone } from "./tokens.client";
+import {
+  ActionButton,
+  CardHeader,
+  CardShell,
+  CardTitle,
+  Chip,
+  DisclosureHeader,
+  EmptyState,
+  ErrorText,
+  KeyValue,
+  PanelShell,
+  ProgressBar,
+  SPACE,
+  text,
+  type Tone,
+} from "./tokens.client";
 
 const PASEO_USAGE_STALE_TIME_MS = 300_000;
 type Provider = ZodOutput<typeof providerUsageRpc.output>["providers"][number];
-type Theme = PluginTheme;
 
 function formatReset(value: string | null | undefined): string {
   if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleString([], {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return date.toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
 function formatBalance(value: number | null | undefined, unit: string): string {
@@ -32,85 +52,72 @@ function formatBalance(value: number | null | undefined, unit: string): string {
   return `${value.toLocaleString()} ${unit}`;
 }
 
-function ProviderCard({
-  provider,
-  preferred,
-  theme,
-  t,
-}: {
+function ProviderCard({ provider, preferred, theme, t }: {
   provider: Provider;
   preferred: boolean;
-  theme: Theme;
+  theme: PluginTheme;
   t: Translator;
 }) {
-  const muted = { color: theme.colors.foregroundMuted };
   return (
-    <View
-      style={{
-        gap: 10,
-        padding: 12,
-        borderWidth: preferred ? 2 : 1,
-        borderColor: preferred ? theme.colors.accent : theme.colors.foregroundMuted,
-        borderRadius: RADIUS.card,
-      }}
-    >
-      <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-        <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 7 }}>
-          <Text style={{ color: theme.colors.foreground, fontSize: FONT.cardTitle, fontWeight: "800" }}>{provider.displayName}</Text>
-          {preferred ? (
-            <Text style={{ color: theme.colors.accent, fontSize: FONT.meta, fontWeight: "700" }}>{t.usage_preferred}</Text>
-          ) : null}
-        </View>
-        <Text style={muted}>{provider.planLabel || provider.sourceLabel || t.usage_connected}</Text>
-      </View>
+    <CardShell theme={theme} {...(preferred ? { accentColor: theme.colors.accent } : {})}>
+      <CardHeader trailing={preferred ? <Chip text={t.usage_preferred} theme={theme} tone="ok" /> : null}>
+        <CardTitle label={provider.displayName} theme={theme} />
+      </CardHeader>
+      <Text style={text(theme, "meta", { muted: true })}>
+        {provider.planLabel || provider.sourceLabel || t.usage_connected}
+      </Text>
 
       {provider.windows.map((window) => {
-        const used = Math.max(0, Math.min(100, window.usedPct ?? (window.remainingPct === null || window.remainingPct === undefined ? 0 : 100 - window.remainingPct)));
+        const used = Math.max(0, Math.min(100, window.usedPct ?? (
+          window.remainingPct === null || window.remainingPct === undefined ? 0 : 100 - window.remainingPct
+        )));
+        const tone = window.tone as Tone | undefined;
         return (
-          <View key={window.id} style={{ gap: 5 }}>
-            <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8 }}>
-              <Text style={{ color: theme.colors.foreground, fontWeight: "600" }}>{window.label}</Text>
-              <Text style={{ color: toneColor(theme, window.tone as Tone | undefined), fontWeight: "700" }}>
-                {window.remainingPct === null || window.remainingPct === undefined ? `${Math.round(used)}% used` : `${Math.round(window.remainingPct)}% left`}
+          <View key={window.id} style={{ gap: SPACE.tight }}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", gap: SPACE.gap }}>
+              <Text style={text(theme, "body", { flex: 1 })}>{window.label}</Text>
+              <Text style={text(theme, "body", { strong: true, ...(tone ? { tone } : {}) })}>
+                {window.remainingPct === null || window.remainingPct === undefined
+                  ? t.usage_used_pct(Math.round(used))
+                  : t.usage_left_pct(Math.round(window.remainingPct))}
               </Text>
             </View>
-            <ProgressBar percent={used} theme={theme} tone={window.tone} />
-            {window.resetsAt ? <Text style={[muted, { fontSize: FONT.meta }]}>Resets {formatReset(window.resetsAt)}</Text> : null}
-            {window.runsOutAt ? <Text style={{ color: theme.colors.statusDanger, fontSize: FONT.meta }}>Runs out {formatReset(window.runsOutAt)}</Text> : null}
+            <ProgressBar percent={used} theme={theme} {...(tone ? { tone } : {})} />
+            {window.resetsAt ? (
+              <Text style={text(theme, "meta", { muted: true })}>{t.usage_resets(formatReset(window.resetsAt))}</Text>
+            ) : null}
+            {window.runsOutAt ? (
+              <Text style={text(theme, "meta", { tone: "danger" })}>{t.usage_runs_out(formatReset(window.runsOutAt))}</Text>
+            ) : null}
           </View>
         );
       })}
 
       {(provider.balances ?? []).map((balance) => (
-        <View key={balance.id} style={{ flexDirection: "row", justifyContent: "space-between", gap: 8 }}>
-          <Text style={muted}>{balance.label}</Text>
-          <Text style={{ color: toneColor(theme, balance.tone as Tone | undefined), fontWeight: "700" }}>
-            {formatBalance(balance.remaining, balance.unit)} remaining
+        <KeyValue key={balance.id} label={balance.label} theme={theme}>
+          <Text style={text(theme, "body", { strong: true, ...(balance.tone ? { tone: balance.tone as Tone } : {}) })}>
+            {t.usage_remaining(formatBalance(balance.remaining, balance.unit))}
           </Text>
-        </View>
+        </KeyValue>
       ))}
 
       {(provider.details ?? []).map((detail) => (
-        <View key={detail.id} style={{ flexDirection: "row", justifyContent: "space-between", gap: 8 }}>
-          <Text style={muted}>{detail.label}</Text>
-          <Text style={{ color: toneColor(theme, detail.tone as Tone | undefined) }}>{detail.value}</Text>
-        </View>
+        <KeyValue key={detail.id} label={detail.label} theme={theme}>
+          <Text style={text(theme, "body", detail.tone ? { tone: detail.tone as Tone } : {})}>{detail.value}</Text>
+        </KeyValue>
       ))}
 
-      {provider.error ? <Text style={{ color: theme.colors.statusDanger }}>{provider.error}</Text> : null}
+      {provider.error ? <ErrorText error={provider.error} theme={theme} /> : null}
       {provider.windows.length === 0 && (provider.balances ?? []).length === 0 && !provider.error ? (
-        <Text style={muted}>{t.usage_no_windows}</Text>
+        <EmptyState label={t.usage_no_windows} theme={theme} />
       ) : null}
-    </View>
+    </CardShell>
   );
 }
 
-export function ProviderBalancesCard({
-  theme,
-  layout,
-  host,
-  preferredProviderId,
-}: PluginHostProps & { preferredProviderId?: string | null }) {
+export function ProviderBalancesCard({ theme, host, preferredProviderId }: PluginHostProps & {
+  preferredProviderId?: string | null;
+}) {
   const localeCtx = useLocale(host.id);
   const t = localeCtx.t;
   const listUsage = useRpc(providerUsageRpc);
@@ -143,87 +150,55 @@ export function ProviderBalancesCard({
   }
 
   return (
-    <View style={{ width: "100%", height: layout.compact ? 500 : 580, gap: 10 }}>
-      <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-        <View style={{ gap: 2 }}>
-          <Text style={{ color: theme.colors.foreground, fontSize: FONT.panelTitle, fontWeight: "800" }}>{t.usage_modal_title}</Text>
-          <Text style={{ color: theme.colors.foregroundMuted, fontSize: FONT.meta }}>
-            Paseo native usage · 5 minute cache
-          </Text>
-        </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t.usage_action_refresh_a11y}
-          disabled={usageQuery.isFetching}
+    <PanelShell
+      theme={theme}
+      title={t.usage_modal_title}
+      subtitle={usageQuery.data?.fetchedAt ? t.usage_fetched(formatReset(usageQuery.data.fetchedAt)) : t.usage_subtitle}
+      actions={
+        <ActionButton
+          label={usageQuery.isFetching ? t.usage_action_refreshing : t.usage_action_refresh}
           onPress={() => void refresh()}
-          style={({ pressed }) => ({
-            borderWidth: 1,
-            borderColor: theme.colors.foregroundMuted,
-            borderRadius: RADIUS.inner,
-            paddingHorizontal: 11,
-            paddingVertical: 8,
-            opacity: usageQuery.isFetching ? 0.45 : pressed ? 0.7 : 1,
-          })}
-        >
-          <Text style={{ color: theme.colors.foreground, fontWeight: "600" }}>
-            {usageQuery.isFetching ? t.usage_action_refreshing : t.usage_action_refresh}
-          </Text>
-        </Pressable>
-      </View>
+          theme={theme}
+          disabled={usageQuery.isFetching}
+        />
+      }
+      footer={<LanguagePicker ctx={localeCtx} hostId={host.id} theme={theme} />}
+    >
+      {usageQuery.isLoading ? (
+        <View style={{ padding: SPACE.card, alignItems: "center", gap: SPACE.gap }}>
+          <ActivityIndicator color={theme.colors.accent} />
+          <EmptyState label={t.usage_loading} theme={theme} />
+        </View>
+      ) : null}
+      {usageQuery.error ? <ErrorText error={usageQuery.error} theme={theme} /> : null}
+      {visible.map((provider) => (
+        <ProviderCard
+          key={provider.providerId}
+          t={t}
+          provider={provider}
+          preferred={provider.providerId === preferredProviderId}
+          theme={theme}
+        />
+      ))}
+      {!usageQuery.isLoading && visible.length === 0 ? <EmptyState label={t.usage_empty} theme={theme} /> : null}
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ gap: 10, paddingBottom: 18 }}>
-        {usageQuery.isLoading ? (
-          <View style={{ padding: 28, alignItems: "center", gap: 8 }}>
-            <ActivityIndicator color={theme.colors.accent} />
-            <Text style={{ color: theme.colors.foregroundMuted }}>{t.usage_loading}</Text>
-          </View>
-        ) : null}
-        {usageQuery.error ? (
-          <Text style={{ color: theme.colors.statusDanger }}>
-            {usageQuery.error instanceof Error ? usageQuery.error.message : String(usageQuery.error)}
-          </Text>
-        ) : null}
-        {visible.map((provider) => (
-          <ProviderCard t={t}
-            key={provider.providerId}
-            provider={provider}
-            preferred={provider.providerId === preferredProviderId}
+      {unavailable.length ? (
+        <View style={{ gap: SPACE.tight }}>
+          <DisclosureHeader
+            open={showUnavailable}
+            onPress={() => setShowUnavailable((value) => !value)}
+            label={t.usage_toggle_unavailable(showUnavailable, unavailable.length)}
             theme={theme}
           />
-        ))}
-        {!usageQuery.isLoading && visible.length === 0 ? (
-          <Text style={{ color: theme.colors.foregroundMuted }}>{t.usage_empty}</Text>
-        ) : null}
-
-        {unavailable.length ? (
-          <View style={{ gap: 8, paddingTop: 4 }}>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => setShowUnavailable((value) => !value)}
-              style={{ paddingVertical: 7 }}
-            >
-              <Text style={{ color: theme.colors.foregroundMuted, fontWeight: "700" }}>
-                {t.usage_toggle_unavailable(showUnavailable, unavailable.length)}
-              </Text>
-            </Pressable>
-            {showUnavailable
-              ? unavailable.map((provider) => (
-                  <View key={provider.providerId} style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: theme.colors.foregroundMuted }}>
-                    <Text style={{ color: theme.colors.foreground }}>{provider.displayName}</Text>
-                    <Text style={{ color: theme.colors.foregroundMuted }}>{t.usage_unavailable}</Text>
-                  </View>
-                ))
-              : null}
-          </View>
-        ) : null}
-      </ScrollView>
-
-      {usageQuery.data?.fetchedAt ? (
-        <Text style={{ color: theme.colors.foregroundMuted, fontSize: FONT.chip }}>
-          Fetched {formatReset(usageQuery.data.fetchedAt)}
-        </Text>
+          {showUnavailable
+            ? unavailable.map((provider) => (
+                <KeyValue key={provider.providerId} label={provider.displayName} theme={theme}>
+                  <Text style={text(theme, "meta", { muted: true })}>{t.usage_unavailable}</Text>
+                </KeyValue>
+              ))
+            : null}
+        </View>
       ) : null}
-      <LanguagePicker ctx={localeCtx} hostId={host.id} theme={theme} />
-    </View>
+    </PanelShell>
   );
 }

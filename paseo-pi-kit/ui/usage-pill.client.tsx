@@ -14,6 +14,7 @@ import { translator } from "../domain/i18n.shared";
 import { localeFromTag } from "../domain/locale.shared";
 import { detectClientLocale, useLocale } from "./locale.client";
 import { ProviderBalancesCard } from "./balances-main.client";
+import { ICON } from "./tokens.client";
 
 const PASEO_USAGE_STALE_TIME_MS = 300_000;
 
@@ -56,24 +57,27 @@ function ProviderUsagePill(props: PluginComposerPillProps) {
   return (
     <>
       <View style={{ alignItems: "center", justifyContent: "center" }}>
-        <Icon name="Gauge" size={15} color={color} />
+        <Icon name="Gauge" size={ICON.row} color={color} />
       </View>
     </>
   );
 }
 
-/** Provider 用量面板 —— 与任务列表、Subagents 同在 explorer 里并列。 */
+/**
+ * Provider 用量面板 —— 与任务列表、Subagents 同在 explorer 里并列。
+ *
+ * ⚠️ 这里不再套一层带内边距的 View：`ProviderBalancesCard` 自己就是
+ * `PanelShell`，外面再包一层会双份内边距，而且把它的 `flex: 1` 卡死。
+ */
 export function ProviderUsagePanel(props: PluginAgentPanelProps) {
   const agent = useAgent(props.agentId, ({ provider, model }) => ({ provider, model }));
   return (
-    <View style={{ padding: props.layout.compact ? 10 : 14 }}>
-      <ProviderBalancesCard
-        theme={props.theme}
-        host={props.host}
-        layout={props.layout}
-        preferredProviderId={providerForAgent(agent?.provider, agent?.model)}
-      />
-    </View>
+    <ProviderBalancesCard
+      theme={props.theme}
+      host={props.host}
+      layout={props.layout}
+      preferredProviderId={providerForAgent(agent?.provider, agent?.model)}
+    />
   );
 }
 

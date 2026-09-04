@@ -44,6 +44,8 @@ genuinely need you appear as a Paseo dialog with options, on a different channel
 entirely.
 
 Format reference: [`docs/pi-message-formats.md`](docs/pi-message-formats.md).
+Card design (how arbitrary JSON becomes readable, and why every card looks alike):
+[`docs/card-design.md`](docs/card-design.md).
 
 ### Provider usage
 

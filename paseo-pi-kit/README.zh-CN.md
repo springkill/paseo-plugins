@@ -40,6 +40,8 @@ JSON 原样倒出来。
 回答的提问会弹带选项的 Paseo 对话框，走的是完全另一条通路。
 
 格式对照表见 [`docs/pi-message-formats.md`](docs/pi-message-formats.md)。
+卡片设计（任意 JSON 怎么变成人能读的东西、四张卡片凭什么长得一样）见
+[`docs/card-design.md`](docs/card-design.md)。
 
 ### Provider 用量
 
