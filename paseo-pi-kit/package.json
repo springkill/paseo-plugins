@@ -1,7 +1,7 @@
 {
   "name": "paseo-pi-kit",
   "private": true,
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "Native Paseo timeline cards and Composer status for Pi todo tasks",
   "scripts": {
     "typecheck": "tsc --noEmit",

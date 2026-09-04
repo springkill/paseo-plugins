@@ -1,41 +1,67 @@
 name: Release
 
+# ⭐ 每个插件独立发版：tag 形如 `<插件目录>-v<semver>`，例如
+#     paseo-pi-kit-v0.3.4
+# 这样一个插件改了不用连带给其它插件升版本号，别人 `--ref` 钉的也是
+# 「这个插件的这个版本」而不是「仓库在某个时刻的样子」。
 on:
   push:
-    tags: ["v*"]
+    tags: ["*-v*"]
 
-# 打不过检查就不发版 —— release 是给别人装的，不能带病出门
 jobs:
+  # tag 决定发哪个插件；顺便挡住「忘了 bump package.json」
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      plugin: ${{ steps.parse.outputs.plugin }}
+      version: ${{ steps.parse.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: parse
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          plugin="${TAG%-v*}"
+          version="${TAG##*-v}"
+          if [ ! -f "$plugin/paseo-plugin.json" ]; then
+            echo "::error::tag '$TAG' 指向的插件目录 '$plugin' 不存在（或缺 paseo-plugin.json）"
+            exit 1
+          fi
+          declared=$(jq -r .version "$plugin/package.json")
+          if [ "$declared" != "$version" ]; then
+            echo "::error::tag 说 $version，但 $plugin/package.json 写的是 $declared —— 先 bump 再打 tag"
+            exit 1
+          fi
+          echo "plugin=$plugin" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  # 打不过检查就不发版 —— release 是给别人装的，不能带病出门
   check:
+    needs: resolve
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: paseo-pi-kit
+        working-directory: ${{ needs.resolve.outputs.plugin }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: paseo-pi-kit/package-lock.json
-      # ⭐ 缓存 node_modules 本身，不只是 ~/.npm。
-      # setup-node 的 `cache: npm` 只存下载的 tarball；npm ci 每次照样把
-      # 300+ 个包删掉重解压 —— react-native 那种几万个小文件，解压才是瓶颈。
-      # 实测：只有 ~/.npm 缓存时 npm ci 仍要 166~421 秒。
-      # key 里锁了 os + node 版本 + lockfile 哈希，依赖一变就自然失效。
+          cache-dependency-path: ${{ needs.resolve.outputs.plugin }}/package-lock.json
       - name: Restore node_modules
         id: modules
         uses: actions/cache@v4
         with:
-          path: paseo-pi-kit/node_modules
-          key: nm-${{ runner.os }}-node22-${{ hashFiles('paseo-pi-kit/package-lock.json') }}
+          path: ${{ needs.resolve.outputs.plugin }}/node_modules
+          key: nm-${{ runner.os }}-node22-${{ hashFiles(format('{0}/package-lock.json', needs.resolve.outputs.plugin)) }}
       - run: npm ci
         if: steps.modules.outputs.cache-hit != 'true'
       - run: npm run typecheck
       - run: npm test --if-present
 
   release:
-    needs: check
+    needs: [resolve, check]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -47,30 +73,30 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
+          PLUGIN: ${{ needs.resolve.outputs.plugin }}
+          VERSION: ${{ needs.resolve.outputs.version }}
         run: |
           # 插件是 git 安装的，不发布构建产物 —— 用户装的就是仓库本身。
           # 所以 release 的价值全在「这个 tag 怎么装」。
           cat > notes.md <<EOF
-          Pi Kit —— 四个功能装在一个插件里，各自可在「Pi Kit 设置」面板里开关：
-          任务列表 / Subagents / Pi 通知卡片 / Provider 用量。
+          \`$PLUGIN\` $VERSION
 
           \`\`\`bash
-          paseo plugin install https://github.com/${{ github.repository }}:paseo-pi-kit --ref $TAG
+          paseo plugin install https://github.com/${{ github.repository }}:$PLUGIN --ref $TAG
           \`\`\`
 
-          省掉 \`--ref\` 就跟着 main 走。
+          Drop \`--ref\` to follow \`main\`. See [\`$PLUGIN/README.md\`](https://github.com/${{ github.repository }}/blob/$TAG/$PLUGIN/README.md).
 
-          ⚠️ Paseo 插件是**受信任、不沙箱**的：后端代码在你机器上以你的身份运行。
-          装之前先看源码。
+          > ⚠️ Paseo plugins are **trusted and unsandboxed**: server code runs on your
+          > machine as you. Read the source before installing.
           EOF
           # 幂等：tag 被重写/强推时这个 workflow 会重新触发，
           # 而 `gh release create` 撞上已存在的 release 会直接失败。
-          # 删了重建，保证同一个 tag 跑几次结果都一样。
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release delete "$TAG" --yes
           fi
           gh release create "$TAG" \
-            --title "$TAG" \
+            --title "$PLUGIN $VERSION" \
             --notes-file notes.md \
             --generate-notes \
             --verify-tag

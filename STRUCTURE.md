@@ -1,30 +1,49 @@
-# 目录结构约定
+# Layout conventions
 
-与 [paseo-rumen](https://github.com/springkill/paseo-rumen) 用同一套分层：
+*[中文](STRUCTURE.zh-CN.md)*
+
+Every plugin here uses the same layers, matching
+[paseo-rumen](https://github.com/springkill/paseo-rumen):
 
 ```
-index.ts       插件注册
-domain/        纯逻辑，无 IO，两端共用（.shared.ts）
-server/        插件子进程（.server.ts，可用 node:*）
-ui/            Paseo 应用内（.client.tsx）
+index.ts       plugin registration
+domain/        pure logic, no IO, shared by both ends (.shared.ts)
+server/        plugin subprocess (.server.ts, may use node:*)
+ui/            inside the Paseo app (.client.tsx)
 tests/         *.test.ts
 ```
 
-## ⚠️ 后缀是承重的，目录不是
+## ⚠️ The suffix is load-bearing; the directory is not
 
-Paseo 的编译器按**文件名后缀**切分前后端 bundle：
+Paseo's compiler splits the client and server bundles **by filename suffix**:
 
 ```js
 onResolve({ filter: /\.(?:client|server)(?:\.[cm]?[jt]sx?)?$/ }, ...)
 ```
 
-目录名不参与判定，重命名目录是安全的；**改后缀会静默改变模块归属**。
-`*.shared.ts` 两端都进，所以它不能 import 任何 `node:*`。
+Directories are for humans. Rename `foo.server.ts` to `foo.ts` and its `node:fs`
+imports land in the client bundle.
 
-违反边界在编译期报错：
-`client-only module cannot be imported into the plugin server bundle`
+## The entry point is filtered as text
 
-## 依赖方向
+`index.ts` gets special treatment (`filterEntrypoint()` in the compiler):
+imports for the opposite target are **deleted line by line**, and so are the
+registration calls that target does not want — `handle` for the client bundle,
+every `add*` for the server one.
 
-`ui/ → domain/`、`server/ → domain/`，`domain/` 不依赖任何一侧。
-`ui/` 不许 import `server/`（会把 `node:*` 泄进前端包），反之亦然。
+So a `.server` value may only be referenced **inside `plugin.handle(...)`**, and
+a `.client` value only inside those `add*` calls. Anywhere else — a bare
+statement, a condition, a callback body the compiler keeps — leaves an
+identifier with no definition in the other bundle, and it throws at runtime.
+
+⚠️ The build does not catch this: the boundary check never sees the import,
+because it was already removed at the text stage.
+
+## Dependency direction
+
+```
+ui/  ──▶  domain/  ◀──  server/
+```
+
+`domain/` imports nothing from `ui/` or `server/`. That is what keeps it testable
+without a host, and what lets both bundles share it.

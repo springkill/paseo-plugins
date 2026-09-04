@@ -9,31 +9,48 @@ on:
   workflow_dispatch:
 
 jobs:
-  check:
+  # 插件是自己发现的 —— 加一个新插件目录不用改这个文件
+  discover:
     runs-on: ubuntu-latest
+    outputs:
+      plugins: ${{ steps.find.outputs.plugins }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: find
+        run: |
+          plugins=$(ls */paseo-plugin.json | xargs -n1 dirname | jq -R . | jq -sc .)
+          echo "plugins=$plugins" >> "$GITHUB_OUTPUT"
+          echo "发现插件: $plugins"
+
+  check:
+    needs: discover
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        plugin: ${{ fromJSON(needs.discover.outputs.plugins) }}
     defaults:
       run:
-        working-directory: paseo-pi-kit
+        working-directory: ${{ matrix.plugin }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: paseo-pi-kit/package-lock.json
+          cache-dependency-path: ${{ matrix.plugin }}/package-lock.json
       # ⭐ 缓存 node_modules 本身，不只是 ~/.npm。
       # setup-node 的 `cache: npm` 只存下载的 tarball；npm ci 每次照样把
       # 300+ 个包删掉重解压 —— react-native 那种几万个小文件，解压才是瓶颈。
-      # 实测：只有 ~/.npm 缓存时 npm ci 仍要 166~421 秒。
-      # key 里锁了 os + node 版本 + lockfile 哈希，依赖一变就自然失效。
+      # 实测：只有 ~/.npm 缓存时 npm ci 仍要 166~421 秒，缓存 node_modules 后整个 job 21 秒。
       - name: Restore node_modules
         id: modules
         uses: actions/cache@v4
         with:
-          path: paseo-pi-kit/node_modules
-          key: nm-${{ runner.os }}-node22-${{ hashFiles('paseo-pi-kit/package-lock.json') }}
+          path: ${{ matrix.plugin }}/node_modules
+          key: nm-${{ runner.os }}-node22-${{ hashFiles(format('{0}/package-lock.json', matrix.plugin)) }}
       - run: npm ci
         if: steps.modules.outputs.cache-hit != 'true'
       - run: npm run typecheck
-      # provider-balances 还没有测试，别让它把 CI 判红
+      # 不是每个插件都有测试，别让缺测试把 CI 判红
       - run: npm test --if-present
