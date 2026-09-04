@@ -1,0 +1,62 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+# 打不过检查就不发版 —— release 是给别人装的，不能带病出门
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        plugin: [paseo-pi-todos, paseo-provider-balances]
+    defaults:
+      run:
+        working-directory: ${{ matrix.plugin }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ${{ matrix.plugin }}/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test --if-present
+
+  release:
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          # 插件是 git 安装的，不发布构建产物 —— 用户装的就是仓库本身。
+          # 所以 release 的价值全在「这个 tag 怎么装」。
+          cat > notes.md <<EOF
+          两个 Paseo 插件。装哪个装哪个，互不依赖。
+
+          \`\`\`bash
+          paseo plugin install https://github.com/${{ github.repository }}:paseo-pi-todos --ref $TAG
+          paseo plugin install https://github.com/${{ github.repository }}:paseo-provider-balances --ref $TAG
+          \`\`\`
+
+          省掉 \`--ref\` 就跟着 main 走。
+
+          ⚠️ Paseo 插件是**受信任、不沙箱**的：后端代码在你机器上以你的身份运行。
+          装之前先看源码。
+          EOF
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --notes-file notes.md \
+            --generate-notes \
+            --verify-tag
