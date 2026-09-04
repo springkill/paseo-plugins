@@ -6,7 +6,7 @@
 
 | 插件 | 做什么 |
 |---|---|
-| [`paseo-pi-kit`](paseo-pi-kit/README.zh-CN.md) | 给 [Pi](https://www.npmjs.com/package/@earendil-works/pi-coding-agent) 会话的四块可开关功能：任务卡、subagent 卡、通知卡、provider 用量 |
+| [`paseo-pi-kit`](paseo-pi-kit/README.zh-CN.md) | 给 [Pi](https://www.npmjs.com/package/@earendil-works/pi-coding-agent) 会话的四块功能：任务卡、subagent 卡、通知卡、provider 用量 |
 
 每个插件有自己的 README 讲细节。这份只讲它们共用的东西：安装、发版、共同约定。
 

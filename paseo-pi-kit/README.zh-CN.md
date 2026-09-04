@@ -2,13 +2,11 @@
 
 给 [Paseo](https://github.com/getpaseo/paseo) 里的
 [Pi](https://www.npmjs.com/package/@earendil-works/pi-coding-agent)
-会话提供四块功能，每块都可单独开关。
+会话提供四块功能，默认全部启用。
 
 *[English](README.md)* · *[仓库根目录](../README.zh-CN.md)*
 
 ## 功能
-
-侧栏打开 **Pi Kit** 逐个开关。改动立即生效，不用重载。
 
 ### 任务列表
 
@@ -68,20 +66,6 @@ agent ID、provider、session realpath、当前用户的异步运行根目录和
 
 唯一的例外是 provider 用量：它要向本机 Paseo daemon 请求公开 `PaseoApi` 没暴露的
 数据。这也是本插件唯一有运行时依赖的原因。
-
-## 功能开关
-
-```
-$PASEO_HOME/plugin-features.json    # { "todos": true, "subagents": false, … }
-```
-
-门控做在**回调体内部**，不是包在注册外面 —— transformer 在 `transform()` 里读开关
-并返回 `undefined`，条目就原样落回默认渲染。注册本身是无条件的，因为
-`addTimelineTransformer` / `addWorkspacePanel` / `addCommandCenterItem` 全都返回
-`void`：**SDK 不给注销句柄**。
-
-一个已知后果：关掉 **Subagents** 后它的面板入口仍留在菜单里。点进去会告诉你功能
-已关闭，并给一个就地打开的按钮。
 
 ## 一层兼容代码
 

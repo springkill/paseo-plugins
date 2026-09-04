@@ -1,35 +1,12 @@
 import { defineRpc } from "@getpaseo/plugin/server";
 import { z } from "zod";
-import { FEATURES, type Feature } from "./features.shared";
 import { LOCALES } from "./locale.shared";
 
 export const LocaleSchema = z.enum(LOCALES);
-export const FeatureSchema = z.enum(FEATURES);
-export const FeatureFlagsSchema = z.object(
-  Object.fromEntries(FEATURES.map((f) => [f, z.boolean()])) as Record<Feature, z.ZodBoolean>,
-);
-
-/**
- * 功能开关。
- *
- * 改完立即生效，不需要重载 —— 门控在回调体里，不在注册处。
- * 为什么不能在注册处判断，见 ui/features.client.ts 顶部。
- */
-export const featuresRpc = defineRpc({
-  name: "pi-kit.features",
-  input: z.object({}),
-  output: z.object({ flags: FeatureFlagsSchema }),
-});
-
-export const setFeatureRpc = defineRpc({
-  name: "pi-kit.set-feature",
-  input: z.object({ feature: FeatureSchema, enabled: z.boolean() }),
-  output: z.object({ flags: FeatureFlagsSchema }),
-});
 export const LocalePreferenceSchema = z.enum(["auto", ...LOCALES]);
 
 /**
- * 界面语言。**三个 Paseo 插件共用同一个设置**，所以这个 RPC 读写的是
+ * 界面语言。**本插件与 paseo-rumen 共用同一个设置**，所以这个 RPC 读写的是
  * `$PASEO_HOME/plugin-locale.json`，不是本插件私有的状态。
  */
 export const localeRpc = defineRpc({

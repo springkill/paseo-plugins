@@ -1,14 +1,11 @@
 # Paseo Pi Kit
 
 Four features for [Pi](https://www.npmjs.com/package/@earendil-works/pi-coding-agent)
-sessions in [Paseo](https://github.com/getpaseo/paseo), each one toggleable.
+sessions in [Paseo](https://github.com/getpaseo/paseo). All on by default.
 
 *[中文](README.zh-CN.md)* · *[repository root](../README.md)*
 
 ## Features
-
-Open **Pi Kit** in the sidebar to turn any of these on or off. Changes apply
-immediately — no reload.
 
 ### Todo list
 
@@ -78,21 +75,6 @@ requests.
 Provider usage is the one exception: it asks the local Paseo daemon for data the
 public `PaseoApi` does not expose. That is also the only reason this plugin has a
 runtime dependency at all.
-
-## Feature flags
-
-```
-$PASEO_HOME/plugin-features.json    # { "todos": true, "subagents": false, … }
-```
-
-Gating happens **inside the callbacks**, not around the registrations —
-transformers check the flag in `transform()` and return `undefined`, which lets
-the item fall back to default rendering. Registration itself is unconditional,
-because `addTimelineTransformer` / `addWorkspacePanel` / `addCommandCenterItem`
-all return `void`: the SDK gives you no way to unregister.
-
-One consequence worth knowing: turning **Subagents** off leaves its panel entry
-in menus. Opening it says the feature is off and offers to re-enable it.
 
 ## A compatibility layer
 

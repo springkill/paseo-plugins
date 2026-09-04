@@ -6,7 +6,7 @@ A collection of practical plugins for [Paseo](https://github.com/getpaseo/paseo)
 
 | Plugin | What it does |
 |---|---|
-| [`paseo-pi-kit`](paseo-pi-kit) | Four toggleable features for [Pi](https://www.npmjs.com/package/@earendil-works/pi-coding-agent) sessions: todo cards, subagent cards, notice cards, and provider usage |
+| [`paseo-pi-kit`](paseo-pi-kit) | Four features for [Pi](https://www.npmjs.com/package/@earendil-works/pi-coding-agent) sessions: todo cards, subagent cards, notice cards, and provider usage |
 
 Each plugin has its own README with the details. This file only covers what they
 share: installing, versioning, and the conventions they follow.

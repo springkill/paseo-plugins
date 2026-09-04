@@ -1,8 +1,8 @@
 /**
  * 连接本机 Paseo daemon 的公共部分。
  *
- * 两个地方要用：读 provider 用量（`provider-usage.server.ts`），
- * 以及切功能开关后让插件自重载（`features.server.ts`）。
+ * 只有一个用处：读 provider 用量（`provider-usage.server.ts`）—— 那份数据
+ * 公开的 `PaseoApi` 没暴露，只能直接问本机 daemon。
  *
  * ⚠️ 这条路走的是 `@getpaseo/client/internal/daemon-client` —— **internal**。
  * 它是本插件唯一的**值导入**（其余 `@getpaseo/client` 引用都是 `import type`，

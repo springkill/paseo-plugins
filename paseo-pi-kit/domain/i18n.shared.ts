@@ -192,46 +192,6 @@ const CATALOG = {
     en: `${show ? "Hide" : "Show"} unavailable providers (${n})`,
   }),
 
-  // ── 功能开关 ────────────────────────────────────────────────────
-  settings_sidebar: { zh: "Pi Kit", en: "Pi Kit" },
-  settings_panel: { zh: "Pi Kit 设置", en: "Pi Kit Settings" },
-  settings_open: { zh: "打开 Pi Kit 设置", en: "Open Pi Kit settings" },
-  settings_features: { zh: "功能", en: "Features" },
-  settings_features_hint: {
-    zh: "关掉后时间线卡片与 composer pill 立即消失，不需要重载。",
-    en: "Disabling removes timeline cards and composer pills immediately — no reload needed.",
-  },
-  // ⚠️ 别删：这句是在解释「为什么我关了但菜单里还有」
-  settings_menu_note: {
-    zh: "改动立即生效。「Pi Subagents」的面板入口会留在菜单里 —— Paseo 的注册 API 不支持注销，点进去会告诉你它已关闭。",
-    en: "Changes apply immediately. The “Pi Subagents” entry stays in menus — Paseo's registration API has no way to remove it; opening it says the feature is off.",
-  },
-  feature_disabled: {
-    zh: "这个功能已经关掉了。",
-    en: "This feature is turned off.",
-  },
-  feature_enable: { zh: "打开", en: "Enable" },
-  feature_todos: { zh: "任务列表", en: "Todo list" },
-  feature_todos_desc: {
-    zh: "把 Pi 的 todo 工具调用和 Paseo 原生 todo 换成进度卡，并在 composer 显示完成数",
-    en: "Replaces Pi todo tool calls and native todo items with progress cards, plus a composer pill",
-  },
-  feature_subagents: { zh: "Subagents", en: "Subagents" },
-  feature_subagents_desc: {
-    zh: "subagent 调用卡片、实时子任务状态、独立面板与 composer pill",
-    en: "Subagent call cards, live child status, a dedicated panel and a composer pill",
-  },
-  feature_notices: { zh: "Pi 通知卡片", en: "Pi notice cards" },
-  feature_notices_desc: {
-    zh: "把后台任务、workflow、subagent 督导等通知从裸文本还原成结构化卡片",
-    en: "Turns background task, workflow and subagent notices from raw text into structured cards",
-  },
-  feature_balances: { zh: "Provider 用量", en: "Provider usage" },
-  feature_balances_desc: {
-    zh: "在 composer 显示各 provider 的额度窗口与余额",
-    en: "Shows provider quota windows and balances in the composer",
-  },
-
   // ── 语言 ────────────────────────────────────────────────────────
 
   // ── 语言 ────────────────────────────────────────────────────────

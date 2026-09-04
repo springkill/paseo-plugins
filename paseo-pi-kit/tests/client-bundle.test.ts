@@ -100,12 +100,9 @@ test("⭐ client bundle 能 evaluate，且注册了全部贡献", { skip: COMPIL
     "native-todo-card", "pi-notice-card", "pi-subagent-card", "pi-todo-tool-card",
   ], "四个 transformer 少一个都意味着对应的卡片会退回裸文本");
   assert.deepEqual(seen.renderers.toSorted(), ["pi-notice", "pi-subagent-card", "pi-todo-board"]);
-  assert.deepEqual(seen.panels.toSorted(), ["pi-kit-settings", "pi-subagents"]);
-  assert.deepEqual(seen.commands.toSorted(), ["open-pi-kit-settings", "open-pi-subagents"]);
+  assert.deepEqual(seen.panels.toSorted(), ["pi-subagents"]);
+  assert.deepEqual(seen.commands.toSorted(), ["open-pi-subagents"]);
   assert.equal(seen.clientSides, 1);
-  // ⭐ 侧栏入口不能少 —— 没有它，功能开关等于不存在
-  assert.deepEqual(seen.surfaces, ["pi-kit"]);
-  assert.deepEqual(seen.sidebarItems, ["pi-kit"]);
 
   // cleanup 里引用 .server 符号是另一个踩过的坑（closeProviderUsageClient）
   assert.doesNotThrow(() => cleanup?.(), "cleanup 不该在客户端 ReferenceError");
