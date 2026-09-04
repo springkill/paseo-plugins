@@ -11,7 +11,7 @@ import { Icon, Modal } from "@getpaseo/plugin/react-native";
 import { useQuery } from "@tanstack/react-query";
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
-import { subagentCallsRpc, type SubagentCall, type SubagentChild } from "./contracts.shared";
+import { subagentCallsRpc, type SubagentCall, type SubagentChild } from "../domain/contracts.shared";
 
 function statusMeta(status: SubagentCall["status"] | SubagentChild["status"], theme: PluginTheme) {
   if (status === "completed") return { label: "完成", icon: "CheckCircle2", color: theme.colors.statusSuccess };

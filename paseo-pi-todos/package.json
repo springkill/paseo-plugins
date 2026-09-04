@@ -5,7 +5,7 @@
   "description": "Native Paseo timeline cards and Composer status for Pi todo tasks",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test *.test.ts"
+    "test": "tsx --test tests/*.test.ts"
   },
   "devDependencies": {
     "@getpaseo/client": "^0.7.0",

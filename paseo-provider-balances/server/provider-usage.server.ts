@@ -1,7 +1,7 @@
 import { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 import { readFile } from "node:fs/promises";
 import type { output as ZodOutput } from "zod";
-import { providerUsageRpc } from "./contracts.shared";
+import { providerUsageRpc } from "../domain/contracts.shared";
 
 let daemonClient: DaemonClient | null = null;
 let connecting: Promise<DaemonClient> | null = null;

@@ -10,7 +10,7 @@ import { Icon, Modal } from "@getpaseo/plugin/react-native";
 import { useQuery } from "@tanstack/react-query";
 import React, { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
-import { latestTodoRpc, type TodoBoard, type TodoTask } from "./contracts.shared";
+import { latestTodoRpc, type TodoBoard, type TodoTask } from "../domain/contracts.shared";
 
 function statusMeta(status: TodoTask["status"], theme: PluginTheme) {
   if (status === "completed") return { icon: "CheckCircle2", label: "完成", color: theme.colors.statusSuccess };

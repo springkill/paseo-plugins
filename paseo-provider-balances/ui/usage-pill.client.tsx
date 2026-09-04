@@ -9,7 +9,7 @@ import { Modal } from "@getpaseo/plugin/react-native";
 import { useQuery } from "@tanstack/react-query";
 import React, { useEffect, useState } from "react";
 import { View } from "react-native";
-import { providerUsageRpc } from "./contracts.shared";
+import { providerUsageRpc } from "../domain/contracts.shared";
 import { ProviderBalancesCard } from "./main.client";
 
 const PASEO_USAGE_STALE_TIME_MS = 300_000;

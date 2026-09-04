@@ -50,6 +50,12 @@ Paseo 的插件是**受信任、不沙箱**的：
   **这一条只在 git 安装/更新时执行**；目录来源的插件不跑 `build`，
   本地开发要自己 `npm install`
 
+## 目录结构
+
+两个插件都按层分：`domain/` `server/` `ui/` `tests/`，见 [STRUCTURE.md](STRUCTURE.md)。
+
+⚠️ 文件名后缀 `.client` / `.server` / `.shared` 是承重的 —— 编译器靠它切前后端，目录名不参与判定。
+
 ## 开发
 
 ```bash

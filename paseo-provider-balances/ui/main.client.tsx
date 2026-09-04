@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { output as ZodOutput } from "zod";
 import React, { useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
-import { providerUsageRpc } from "./contracts.shared";
+import { providerUsageRpc } from "../domain/contracts.shared";
 
 const PASEO_USAGE_STALE_TIME_MS = 300_000;
 type Provider = ZodOutput<typeof providerUsageRpc.output>["providers"][number];

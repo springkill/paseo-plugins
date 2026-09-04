@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import type { PluginHandlerContext } from "@getpaseo/plugin";
-import { listSubagentCalls } from "./subagents.server";
+import { listSubagentCalls } from "../server/subagents.server";
 
 function line(message: unknown, timestamp: string) {
   return JSON.stringify({ type: "message", timestamp, message });

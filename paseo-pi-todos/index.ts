@@ -1,11 +1,11 @@
 import type { PluginContext, PluginTimelineData } from "@getpaseo/plugin";
-import { latestTodoRpc, SubagentCallSchema, subagentCallsRpc, TodoBoardSchema } from "./contracts.shared";
-import { contributeSubagentPills, PiSubagentsPanel, SubagentTimelineCard } from "./subagents.client";
-import { parseSubagentTimelineItem } from "./subagent-parser.shared";
-import { listSubagentCalls } from "./subagents.server";
-import { contributeTodoPills, TodoTimelineCard } from "./todo.client";
-import { parseTodoTimelineItem } from "./todo-parser.shared";
-import { getLatestTodo } from "./todo.server";
+import { latestTodoRpc, SubagentCallSchema, subagentCallsRpc, TodoBoardSchema } from "./domain/contracts.shared";
+import { contributeSubagentPills, PiSubagentsPanel, SubagentTimelineCard } from "./ui/subagents.client";
+import { parseSubagentTimelineItem } from "./domain/subagent-parser.shared";
+import { listSubagentCalls } from "./server/subagents.server";
+import { contributeTodoPills, TodoTimelineCard } from "./ui/todo.client";
+import { parseTodoTimelineItem } from "./domain/todo-parser.shared";
+import { getLatestTodo } from "./server/todo.server";
 
 function timelineData(value: unknown): PluginTimelineData {
   return JSON.parse(JSON.stringify(value)) as PluginTimelineData;

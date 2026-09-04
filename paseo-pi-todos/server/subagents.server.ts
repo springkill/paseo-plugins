@@ -3,8 +3,8 @@ import { open, readFile, realpath, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, isAbsolute, join, sep } from "node:path";
 import type { output as ZodOutput } from "zod";
-import { subagentCallsRpc, type SubagentCall, type SubagentChild } from "./contracts.shared";
-import { parseSubagentTimelineItem } from "./subagent-parser.shared";
+import { subagentCallsRpc, type SubagentCall, type SubagentChild } from "../domain/contracts.shared";
+import { parseSubagentTimelineItem } from "../domain/subagent-parser.shared";
 
 const MAX_SESSION_TAIL = 16 * 1024 * 1024;
 const MAX_STATUS_BYTES = 4 * 1024 * 1024;
