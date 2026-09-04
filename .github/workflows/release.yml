@@ -67,6 +67,12 @@ jobs:
           ⚠️ Paseo 插件是**受信任、不沙箱**的：后端代码在你机器上以你的身份运行。
           装之前先看源码。
           EOF
+          # 幂等：tag 被重写/强推时这个 workflow 会重新触发，
+          # 而 `gh release create` 撞上已存在的 release 会直接失败。
+          # 删了重建，保证同一个 tag 跑几次结果都一样。
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release delete "$TAG" --yes
+          fi
           gh release create "$TAG" \
             --title "$TAG" \
             --notes-file notes.md \
