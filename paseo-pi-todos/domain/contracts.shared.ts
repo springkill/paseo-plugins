@@ -33,37 +33,129 @@ export const setLocaleRpc = defineRpc({
 });
 
 /**
- * Pi 的通知类消息（后台任务 / workflow / subagent 督导 / 需要关注 / 网页抓取）。
+ * Pi 的通知类消息。
  *
- * ⚠️ 这些在 Paseo 里被拍平成了普通助手消息（`details` 被丢掉），所以字段是
- * 从文本反解出来的。取不到的留空 —— 少一个字段不该让整张卡片退回裸文本。
+ * 字段按 `docs/pi-message-formats.md` 那张对照表来 —— 那是从已装 Pi 插件的源码里
+ * 逐条抠出来的，每个字段都能对上某个 `format*()` 函数的某个输出位。
+ *
+ * ⚠️ 这些消息在 Paseo 里被拍平成了普通助手消息（`details` 被丢掉），所以只能从文本反解。
+ * 取不到的留空 —— 少一个字段不该让整张卡片退回裸文本。
  */
+export const NoticeStatusSchema = z.enum([
+  "completed", "failed", "paused", "stopped", "running", "attention", "timed_out", "unresolved",
+]);
+
+/** `Child outputs:` 区块里的一项。 */
+export const ChildOutputSchema = z.object({
+  key: z.string().max(200).optional(),
+  runId: z.string().max(200).optional(),
+  status: z.string().max(60).optional(),
+  savedOutputPath: z.string().max(1000).optional(),
+  preview: z.string().max(8000).optional(),
+  /** 没有预览时 Pi 给的原因，如 `saved output is file-only`。 */
+  previewUnavailable: z.string().max(300).optional(),
+});
+
+/** `Child runs:` 那一行里的一项（只有相关性元信息，没有输出）。 */
+export const ChildRunSchema = z.object({
+  key: z.string().max(200).optional(),
+  /** Pi 拿不到时会写字面量 `unavailable`，那种情况这里留空。 */
+  runId: z.string().max(200).optional(),
+  status: z.string().max(60).optional(),
+});
+
+/** workflow 摘要行拆出来的东西。 */
+export const WorkflowSummarySchema = z.object({
+  childCount: z.number().int().nonnegative().optional(),
+  traceEvents: z.number().int().nonnegative().optional(),
+  /** `Output path mappings:` 与 preflight 告警。 */
+  notes: z.array(z.string().max(600)).max(20).default([]),
+  /** true = 丢掉了 `Return:` 那段被 Pi 截断到 1000 字符的预览。 */
+  returnTruncated: z.boolean().optional(),
+});
+
+/**
+ * 一次子任务完成。单条通知有一项，合批通知有多项 —— 两者共用这个形状，
+ * 因为 `formatGroupedCompletion` 每一节复用的就是 `formatSingleCompletion` 的零件。
+ */
+export const CompletionEntrySchema = z.object({
+  agent: z.string().max(200),
+  /** 头部 `**agent**` 后面那个 `(…)`。 */
+  taskInfo: z.string().max(400).optional(),
+  status: NoticeStatusSchema.optional(),
+  /** 正文，已剥掉 `Child outputs:` 区块和各元信息行。 */
+  summary: z.string().max(20000).default(""),
+  workflow: WorkflowSummarySchema.optional(),
+  childOutputs: z.array(ChildOutputSchema).max(50).default([]),
+  /** 超出 notice 预算、被 Pi 省掉预览的子任务数。 */
+  omittedPreviews: z.number().int().nonnegative().optional(),
+  childRuns: z.array(ChildRunSchema).max(100).default([]),
+  workflowRunId: z.string().max(200).optional(),
+  handoffPath: z.string().max(1000).optional(),
+  reconciled: z.string().max(200).optional(),
+  schedule: z.object({
+    id: z.string().max(200),
+    name: z.string().max(200).optional(),
+  }).optional(),
+  session: z.object({
+    label: z.string().max(80),
+    value: z.string().max(1000),
+  }).optional(),
+});
+
 export const PiNoticeSchema = z.object({
-  kind: z.enum(["background_task", "workflow", "supervisor", "attention", "web_search"]),
-  /** `need_decision` / `progress_update` 之类的子形态。 */
-  variant: z.string().optional(),
-  status: z.enum(["completed", "failed", "stopped", "running", "attention"]).optional(),
+  kind: z.enum([
+    "background_task",  // <background-task-notification>
+    "completion",       // subagent-notify（单条 + 合批）
+    "supervisor",       // subagent_supervisor_request
+    "control",          // subagent_control_notice
+    "wait",             // subagent-wait-subscription
+    "web_fetch",        // web-search-content-ready / web-search-error
+    "model_only",       // goal-contract / subagent-compaction-resume（Pi 自己从不显示）
+  ]),
+  /** 同一 kind 下的子形态，取值见 docs/pi-message-formats.md。 */
+  variant: z.string().max(60).optional(),
+  status: NoticeStatusSchema.optional(),
+
+  // ── background_task ──
   taskId: z.string().max(200).optional(),
   taskName: z.string().max(300).optional(),
   exitCode: z.number().int().optional(),
+  error: z.string().max(4000).optional(),
   outputFile: z.string().max(1000).optional(),
+
+  // ── completion ──
+  entries: z.array(CompletionEntrySchema).max(20).default([]),
+
+  // ── supervisor / control ──
   runId: z.string().max(200).optional(),
   agent: z.string().max(200).optional(),
   childIndex: z.number().int().nonnegative().optional(),
+  /** 运行内的步序，来自 `Run: <id> step N`。 */
+  step: z.number().int().positive().optional(),
   /** 有它就说明这条在等你回话。 */
   replyTo: z.string().max(200).optional(),
-  signal: z.string().max(1000).optional(),
+  signal: z.string().max(2000).optional(),
+  facts: z.array(z.string().max(200)).max(12).default([]),
   hint: z.string().max(2000).optional(),
+  recentFailures: z.string().max(2000).optional(),
+  /** completion_guard 的补救说明。 */
+  next: z.string().max(2000).optional(),
+
+  // ── wait ──
+  token: z.string().max(200).optional(),
+  outcome: z.string().max(120).optional(),
+
+  // ── web_fetch ──
   fetched: z.object({ done: z.number().int(), total: z.number().int() }).optional(),
-  childRuns: z.array(z.object({
-    key: z.string().max(200),
-    runId: z.string().max(200).optional(),
-    status: z.string().max(60).optional(),
-  })).max(50).default([]),
+  fetchId: z.string().max(200).optional(),
+
   body: z.string().max(20000).default(""),
 });
 
 export type PiNotice = z.output<typeof PiNoticeSchema>;
+export type PiCompletionEntry = z.output<typeof CompletionEntrySchema>;
+export type PiChildOutput = z.output<typeof ChildOutputSchema>;
 
 export const TaskStatusSchema = z.enum(["pending", "in_progress", "completed", "deleted"]);
 

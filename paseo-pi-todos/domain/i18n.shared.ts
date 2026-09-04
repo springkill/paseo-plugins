@@ -87,33 +87,77 @@ const CATALOG = {
   subagents_collapse_output: { zh: "收起子任务输出", en: "Hide subtask output" },
 
   // ── Pi 通知卡片 ─────────────────────────────────────────────────
+  // 每种通知对应 Pi 哪个插件的哪个函数，见 docs/pi-message-formats.md
   notice_background_task: { zh: "后台任务", en: "Background task" },
   notice_workflow: { zh: "Workflow", en: "Workflow" },
+  notice_completion_group: (n: number) => ({
+    zh: `${n} 个任务完成`,
+    en: `${n} task${n === 1 ? "" : "s"} completed`,
+  }),
   notice_supervisor_decision: { zh: "等你裁决", en: "Awaiting your decision" },
   notice_supervisor_progress: { zh: "Subagent 进度", en: "Subagent progress" },
-  notice_attention: { zh: "Subagent 需要关注", en: "Subagent needs attention" },
+  notice_supervisor_interview: { zh: "等你回答结构化提问", en: "Structured interview requested" },
+  notice_control_failed: { zh: "Subagent 失败", en: "Subagent failed" },
+  notice_control_long_running: { zh: "Subagent 跑得久", en: "Subagent running long" },
+  notice_control_attention: { zh: "Subagent 需要关注", en: "Subagent needs attention" },
+  notice_wait: { zh: "等待订阅已触发", en: "Wait subscription fired" },
   notice_web_search: { zh: "网页内容已抓取", en: "Web content fetched" },
+  notice_web_search_error: { zh: "网页抓取失败", en: "Web fetch failed" },
+  notice_model_only_goal: { zh: "Goal 契约（仅模型可见）", en: "Goal contract (model-only)" },
+  notice_model_only_compaction: { zh: "压缩已完成（仅模型可见）", en: "Compaction done (model-only)" },
 
   notice_status_completed: { zh: "完成", en: "Completed" },
   notice_status_failed: { zh: "失败", en: "Failed" },
+  notice_status_paused: { zh: "已暂停", en: "Paused" },
   notice_status_stopped: { zh: "已停止", en: "Stopped" },
   notice_status_running: { zh: "运行中", en: "Running" },
+  notice_status_attention: { zh: "待处理", en: "Needs attention" },
+  notice_status_timed_out: { zh: "已超时", en: "Timed out" },
+  notice_status_unresolved: { zh: "无法确认", en: "Unresolved" },
 
   notice_exit_code: (code: number) => ({ zh: `退出码 ${code}`, en: `exit ${code}` }),
   notice_child_runs: (n: number) => ({
     zh: `${n} 个子运行`,
     en: `${n} child run${n === 1 ? "" : "s"}`,
   }),
+  notice_trace: (n: number) => ({
+    zh: `${n} 条 trace`,
+    en: `${n} trace event${n === 1 ? "" : "s"}`,
+  }),
   notice_agent: (name: string) => ({ zh: `agent ${name}`, en: `agent ${name}` }),
   notice_child_index: (n: number) => ({ zh: `子任务 #${n}`, en: `child #${n}` }),
+  notice_step: (n: number) => ({ zh: `第 ${n} 步`, en: `step ${n}` }),
   notice_fetched: (done: number, total: number) => ({
     zh: `${done}/${total} 个 URL`,
     en: `${done}/${total} URLs`,
   }),
   notice_output_file: { zh: "输出", en: "Output" },
+  notice_saved_output: { zh: "已存到", en: "Saved to" },
   notice_signal: { zh: "信号", en: "Signal" },
   notice_hint: { zh: "建议", en: "Hint" },
+  notice_next: { zh: "下一步", en: "Next" },
+  notice_recent_failures: { zh: "近期失败", en: "Recent failures" },
   notice_run: { zh: "Run", en: "Run" },
+  notice_schedule: (name: string) => ({ zh: `定时任务 ${name}`, en: `schedule ${name}` }),
+  notice_handoff: { zh: "并行交接", en: "Parallel handoff" },
+  notice_no_preview: (reason: string) => ({
+    zh: `无预览（${reason}）`,
+    en: `no preview (${reason})`,
+  }),
+  notice_omitted_previews: (n: number) => ({
+    zh: `另有 ${n} 个子任务的预览被 Pi 的预算省掉了`,
+    en: `Pi's notice budget omitted ${n} more child preview${n === 1 ? "" : "s"}`,
+  }),
+  // Pi 把 workflow 返回值硬截断到 1000 字符，截断点常落在字符串中间。
+  // 子输出里有同样内容的结构化版本，所以丢掉那段并不损失信息。
+  notice_return_dropped: {
+    zh: "返回值预览被 Pi 截断，已用下面的子任务输出替代",
+    en: "Pi truncated the return preview; child outputs below supersede it",
+  },
+  notice_model_only_body: {
+    zh: "这条是 Pi 发给模型的上下文，它自己的界面从不显示。Paseo 不看 display 标记，所以漏到了这里。",
+    en: "Pi sends this to the model only and never shows it. Paseo ignores the display flag, so it leaked here.",
+  },
   notice_awaiting_reply: {
     zh: "它停在这里等你回话 —— 不回就不会往下走",
     en: "It is blocked waiting for your reply",
