@@ -108,9 +108,9 @@ export function contributeProviderUsagePills(client: PluginClientContext) {
         agentId,
         Component: ProviderUsagePill,
         onPress() {
-          // ⭐ 开侧边面板而不是 Modal —— 它跟文件树、git 变更树在同一个 explorer
-          // 容器里并列，能一直开着对照看，不遮挡对话
-          client.openPanel("pi-usage", { workspaceId, agentId });
+          // ⭐ `location: "explorer"` 不能省 —— 缺省是 "workspace"，那会开成
+          // 主区的大标签页。带上它才落到文件树、git 变更树那个侧边容器里。
+          client.openPanel("pi-usage", { workspaceId, agentId, location: "explorer" });
         },
       }),
     });

@@ -128,7 +128,8 @@ export default function contribute(plugin: PluginContext) {
     keywords: ["pi", "todo", "tasks", "任务"],
     context: "agent",
     onSelect({ openPanel }) {
-      openPanel("pi-todos");
+      // 与 composer pill 保持一致：缺省是 "workspace"（主区大标签页）
+      openPanel("pi-todos", { location: "explorer" });
     },
   });
 
@@ -163,7 +164,8 @@ export default function contribute(plugin: PluginContext) {
     keywords: ["pi", "children", "workflow", "agents"],
     context: "agent",
     onSelect({ openPanel }) {
-      openPanel("pi-subagents");
+      // 与 composer pill 保持一致：缺省是 "workspace"（主区大标签页）
+      openPanel("pi-subagents", { location: "explorer" });
     },
   });
 
@@ -207,7 +209,8 @@ export default function contribute(plugin: PluginContext) {
     keywords: ["provider", "usage", "balance", "quota", "用量", "余额"],
     context: "agent",
     onSelect({ openPanel }) {
-      openPanel("pi-usage");
+      // 与 composer pill 保持一致：缺省是 "workspace"（主区大标签页）
+      openPanel("pi-usage", { location: "explorer" });
     },
   });
 

@@ -60,3 +60,22 @@ test("令牌本身是自洽的", () => {
   assert.ok(font.body >= font.meta, "正文不应小于元信息");
   assert.ok(font.meta > font.chip, "元信息应当大于角标");
 });
+
+// ── 面板打开位置 ────────────────────────────────────────────────────
+
+test("⭐ openPanel 必须显式带 location: \"explorer\"", () => {
+  // `PluginOpenPanelOptions.location` 缺省是 "workspace" —— 那会把面板开成
+  // 主区的大标签页，而不是文件树 / git 变更树旁边那个侧边容器。
+  // 类型上它是可选的，所以漏了不会报错，只会静悄悄开错地方（踩过一次）。
+  const sources = [
+    ...FILES,
+    ["index.ts", readFileSync(join(UI, "..", "index.ts"), "utf8")] as const,
+  ];
+  const offenders = sources.flatMap(([name, source]) =>
+    [...source.matchAll(/openPanel\((?:[^()]|\([^()]*\))*\)/g)]
+      .map((m) => m[0])
+      .filter((call) => !call.includes('location: "explorer"'))
+      .map((call) => `${name}: ${call.replace(/\s+/g, " ")}`),
+  );
+  assert.deepEqual(offenders, [], '补上 location: "explorer"，否则会开成主区大标签页');
+});
