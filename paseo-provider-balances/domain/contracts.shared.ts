@@ -1,5 +1,33 @@
 import { defineRpc } from "@getpaseo/plugin/server";
 import { z } from "zod";
+import { LOCALES } from "./locale.shared";
+
+export const LocaleSchema = z.enum(LOCALES);
+export const LocalePreferenceSchema = z.enum(["auto", ...LOCALES]);
+
+/** 界面语言。**三个 Paseo 插件共用同一个设置**（$PASEO_HOME/plugin-locale.json）。 */
+export const localeRpc = defineRpc({
+  name: "provider-balances.locale",
+  input: z.object({ clientLocale: z.string().max(35).optional() }),
+  output: z.object({
+    preference: LocalePreferenceSchema,
+    resolved: LocaleSchema,
+    lockedByEnv: z.boolean(),
+  }),
+});
+
+export const setLocaleRpc = defineRpc({
+  name: "provider-balances.set-locale",
+  input: z.object({
+    preference: LocalePreferenceSchema,
+    clientLocale: z.string().max(35).optional(),
+  }),
+  output: z.object({
+    preference: LocalePreferenceSchema,
+    resolved: LocaleSchema,
+    lockedByEnv: z.boolean(),
+  }),
+});
 
 const ToneSchema = z.enum(["default", "ok", "warning", "danger"]);
 

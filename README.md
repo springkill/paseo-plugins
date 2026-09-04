@@ -50,6 +50,37 @@ Paseo 的插件是**受信任、不沙箱**的：
   **这一条只在 git 安装/更新时执行**；目录来源的插件不跑 `build`，
   本地开发要自己 `npm install`
 
+## 界面语言
+
+三个插件（[paseo-rumen](https://github.com/springkill/paseo-rumen)、pi-todos、
+provider-balances）**共用同一个语言设置**，在任何一个里改，另外两个下次渲染就跟上：
+
+```
+$PASEO_HOME/plugin-locale.json      # { "locale": "auto" | "zh" | "en" }
+```
+
+判定优先级（唯一裁决点在服务端）：
+
+```
+1. <插件>_LANG          RUMEN_LANG / PI_TODOS_LANG / PROVIDER_BALANCES_LANG
+2. PASEO_PLUGIN_LANG    所有插件一起强制
+3. 共享设置             UI 上点出来的
+4. 客户端语言           Paseo 能从手机/浏览器访问，谁在看跟谁走
+5. 宿主机 LC_ALL / LC_MESSAGES / LANG
+6. en
+```
+
+⭐ **用户设置压过环境推断。** `LANG` 是环境在*告诉*我们这台机器习惯什么语言 ——
+那是推断；设置里点出来的是*决定*。反过来的话，用户设成英文、换个终端又变回中文，
+而他找不到是谁改的。
+
+⚠️ **Paseo 本身没有语言设置 API**（它的界面只有英文，没有 i18n 框架），
+所以"跟 Paseo 统一"只能这样自己实现。刻意**不**往 Paseo 的 `config.json` 里塞键 ——
+它顶层 schema 是 passthrough，技术上塞得进去，但 Paseo 哪天收紧就静默失效。
+
+文案完整性由**类型检查**保证：每条文案的所有语言写在同一个对象字面量里，
+漏一种就是缺少必需属性，`tsc --noEmit` 直接失败。没有对账脚本，因为不需要。
+
 ## 目录结构
 
 两个插件都按层分：`domain/` `server/` `ui/` `tests/`，见 [STRUCTURE.md](STRUCTURE.md)。

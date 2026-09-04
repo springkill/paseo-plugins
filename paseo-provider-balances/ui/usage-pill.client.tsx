@@ -10,6 +10,9 @@ import { useQuery } from "@tanstack/react-query";
 import React, { useEffect, useState } from "react";
 import { View } from "react-native";
 import { providerUsageRpc } from "../domain/contracts.shared";
+import { translator } from "../domain/i18n.shared";
+import { localeFromTag } from "../domain/locale.shared";
+import { detectClientLocale, useLocale } from "./locale.client";
 import { ProviderBalancesCard } from "./main.client";
 
 const PASEO_USAGE_STALE_TIME_MS = 300_000;
@@ -28,6 +31,7 @@ function providerForAgent(provider: string | undefined, model: string | null | u
 
 function ProviderUsagePill(props: PluginComposerPillProps) {
   const { agentId, host, theme } = props;
+  const { t } = useLocale(host.id);
   const [open, setOpen] = useState(false);
   const listUsage = useRpc(providerUsageRpc);
   const agent = useAgent(agentId, ({ provider, model }) => ({ provider, model }));
@@ -66,7 +70,7 @@ function ProviderUsagePill(props: PluginComposerPillProps) {
       <View style={{ alignItems: "center", justifyContent: "center" }}>
         <Icon name="Gauge" size={15} color={color} />
       </View>
-      <Modal title="Provider Usage" open={open} onOpenChange={setOpen}>
+      <Modal title={t.modal_title} open={open} onOpenChange={setOpen}>
         <Modal.Content>
           <View style={{ padding: props.layout.compact ? 10 : 14 }}>
             <ProviderBalancesCard
@@ -83,6 +87,8 @@ function ProviderUsagePill(props: PluginComposerPillProps) {
 }
 
 export function contributeProviderUsagePills(client: PluginClientContext) {
+  // 注册时刻拿不到 useLocale；title 只是 tooltip，弹窗内容走完整判定
+  const t = translator(localeFromTag(detectClientLocale()) ?? "en");
   const pills = new Map<string, { workspaceId: string; remove: () => void }>();
   let active = true;
 
@@ -107,7 +113,7 @@ export function contributeProviderUsagePills(client: PluginClientContext) {
       workspaceId,
       remove: client.addComposerPill({
         id: "provider-usage",
-        title: "Open provider usage",
+        title: t.nav_open_usage,
         workspaceId,
         agentId,
         Component: ProviderUsagePill,

@@ -5,6 +5,8 @@ import type { output as ZodOutput } from "zod";
 import React, { useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
 import { providerUsageRpc } from "../domain/contracts.shared";
+import type { Translator } from "../domain/i18n.shared";
+import { LanguagePicker, useLocale } from "./locale.client";
 
 const PASEO_USAGE_STALE_TIME_MS = 300_000;
 type Provider = ZodOutput<typeof providerUsageRpc.output>["providers"][number];
@@ -39,10 +41,12 @@ function ProviderCard({
   provider,
   preferred,
   theme,
+  t,
 }: {
   provider: Provider;
   preferred: boolean;
   theme: Theme;
+  t: Translator;
 }) {
   const muted = { color: theme.colors.foregroundMuted };
   return (
@@ -59,10 +63,10 @@ function ProviderCard({
         <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 7 }}>
           <Text style={{ color: theme.colors.foreground, fontSize: 17, fontWeight: "800" }}>{provider.displayName}</Text>
           {preferred ? (
-            <Text style={{ color: theme.colors.accent, fontSize: 11, fontWeight: "700" }}>当前优先</Text>
+            <Text style={{ color: theme.colors.accent, fontSize: 11, fontWeight: "700" }}>{t.preferred}</Text>
           ) : null}
         </View>
-        <Text style={muted}>{provider.planLabel || provider.sourceLabel || "已连接"}</Text>
+        <Text style={muted}>{provider.planLabel || provider.sourceLabel || t.connected}</Text>
       </View>
 
       {provider.windows.map((window) => {
@@ -102,7 +106,7 @@ function ProviderCard({
 
       {provider.error ? <Text style={{ color: theme.colors.statusDanger }}>{provider.error}</Text> : null}
       {provider.windows.length === 0 && (provider.balances ?? []).length === 0 && !provider.error ? (
-        <Text style={muted}>Provider 可用，但没有返回额度窗口或余额。</Text>
+        <Text style={muted}>{t.no_windows}</Text>
       ) : null}
     </View>
   );
@@ -114,6 +118,8 @@ export function ProviderBalancesCard({
   host,
   preferredProviderId,
 }: PluginHostProps & { preferredProviderId?: string | null }) {
+  const localeCtx = useLocale(host.id);
+  const t = localeCtx.t;
   const listUsage = useRpc(providerUsageRpc);
   const queryClient = useQueryClient();
   const [showUnavailable, setShowUnavailable] = useState(false);
@@ -147,14 +153,14 @@ export function ProviderBalancesCard({
     <View style={{ width: "100%", height: layout.compact ? 500 : 580, gap: 10 }}>
       <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
         <View style={{ gap: 2 }}>
-          <Text style={{ color: theme.colors.foreground, fontSize: 18, fontWeight: "800" }}>Provider Usage</Text>
+          <Text style={{ color: theme.colors.foreground, fontSize: 18, fontWeight: "800" }}>{t.modal_title}</Text>
           <Text style={{ color: theme.colors.foregroundMuted, fontSize: 11 }}>
             Paseo native usage · 5 minute cache
           </Text>
         </View>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Refresh provider usage"
+          accessibilityLabel={t.action_refresh_a11y}
           disabled={usageQuery.isFetching}
           onPress={() => void refresh()}
           style={({ pressed }) => ({
@@ -167,7 +173,7 @@ export function ProviderBalancesCard({
           })}
         >
           <Text style={{ color: theme.colors.foreground, fontWeight: "600" }}>
-            {usageQuery.isFetching ? "Refreshing…" : "Refresh"}
+            {usageQuery.isFetching ? t.action_refreshing : t.action_refresh}
           </Text>
         </Pressable>
       </View>
@@ -176,7 +182,7 @@ export function ProviderBalancesCard({
         {usageQuery.isLoading ? (
           <View style={{ padding: 28, alignItems: "center", gap: 8 }}>
             <ActivityIndicator color={theme.colors.accent} />
-            <Text style={{ color: theme.colors.foregroundMuted }}>Loading provider balances…</Text>
+            <Text style={{ color: theme.colors.foregroundMuted }}>{t.loading}</Text>
           </View>
         ) : null}
         {usageQuery.error ? (
@@ -185,7 +191,7 @@ export function ProviderBalancesCard({
           </Text>
         ) : null}
         {visible.map((provider) => (
-          <ProviderCard
+          <ProviderCard t={t}
             key={provider.providerId}
             provider={provider}
             preferred={provider.providerId === preferredProviderId}
@@ -193,7 +199,7 @@ export function ProviderBalancesCard({
           />
         ))}
         {!usageQuery.isLoading && visible.length === 0 ? (
-          <Text style={{ color: theme.colors.foregroundMuted }}>No authenticated provider returned usage data.</Text>
+          <Text style={{ color: theme.colors.foregroundMuted }}>{t.empty}</Text>
         ) : null}
 
         {unavailable.length ? (
@@ -204,14 +210,14 @@ export function ProviderBalancesCard({
               style={{ paddingVertical: 7 }}
             >
               <Text style={{ color: theme.colors.foregroundMuted, fontWeight: "700" }}>
-                {showUnavailable ? "Hide" : "Show"} unavailable providers ({unavailable.length})
+                {t.toggle_unavailable(showUnavailable, unavailable.length)}
               </Text>
             </Pressable>
             {showUnavailable
               ? unavailable.map((provider) => (
                   <View key={provider.providerId} style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: theme.colors.foregroundMuted }}>
                     <Text style={{ color: theme.colors.foreground }}>{provider.displayName}</Text>
-                    <Text style={{ color: theme.colors.foregroundMuted }}>Unavailable</Text>
+                    <Text style={{ color: theme.colors.foregroundMuted }}>{t.unavailable}</Text>
                   </View>
                 ))
               : null}
@@ -224,6 +230,7 @@ export function ProviderBalancesCard({
           Fetched {formatReset(usageQuery.data.fetchedAt)}
         </Text>
       ) : null}
+      <LanguagePicker ctx={localeCtx} hostId={host.id} theme={theme} />
     </View>
   );
 }

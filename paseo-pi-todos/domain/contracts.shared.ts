@@ -1,5 +1,36 @@
 import { defineRpc } from "@getpaseo/plugin/server";
 import { z } from "zod";
+import { LOCALES } from "./locale.shared";
+
+export const LocaleSchema = z.enum(LOCALES);
+export const LocalePreferenceSchema = z.enum(["auto", ...LOCALES]);
+
+/**
+ * 界面语言。**三个 Paseo 插件共用同一个设置**，所以这个 RPC 读写的是
+ * `$PASEO_HOME/plugin-locale.json`，不是本插件私有的状态。
+ */
+export const localeRpc = defineRpc({
+  name: "pi-todos.locale",
+  input: z.object({ clientLocale: z.string().max(35).optional() }),
+  output: z.object({
+    preference: LocalePreferenceSchema,
+    resolved: LocaleSchema,
+    lockedByEnv: z.boolean(),
+  }),
+});
+
+export const setLocaleRpc = defineRpc({
+  name: "pi-todos.set-locale",
+  input: z.object({
+    preference: LocalePreferenceSchema,
+    clientLocale: z.string().max(35).optional(),
+  }),
+  output: z.object({
+    preference: LocalePreferenceSchema,
+    resolved: LocaleSchema,
+    lockedByEnv: z.boolean(),
+  }),
+});
 
 export const TaskStatusSchema = z.enum(["pending", "in_progress", "completed", "deleted"]);
 

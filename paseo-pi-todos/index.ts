@@ -1,19 +1,27 @@
 import type { PluginContext, PluginTimelineData } from "@getpaseo/plugin";
-import { latestTodoRpc, SubagentCallSchema, subagentCallsRpc, TodoBoardSchema } from "./domain/contracts.shared";
+import { latestTodoRpc, localeRpc, setLocaleRpc, SubagentCallSchema, subagentCallsRpc, TodoBoardSchema } from "./domain/contracts.shared";
 import { contributeSubagentPills, PiSubagentsPanel, SubagentTimelineCard } from "./ui/subagents.client";
 import { parseSubagentTimelineItem } from "./domain/subagent-parser.shared";
 import { listSubagentCalls } from "./server/subagents.server";
 import { contributeTodoPills, TodoTimelineCard } from "./ui/todo.client";
 import { parseTodoTimelineItem } from "./domain/todo-parser.shared";
 import { getLatestTodo } from "./server/todo.server";
+import { getLocale, setLocale } from "./server/locale.server";
+import { resolveLocale } from "./domain/locale.shared";
+import { translator } from "./domain/i18n.shared";
 
 function timelineData(value: unknown): PluginTimelineData {
   return JSON.parse(JSON.stringify(value)) as PluginTimelineData;
 }
 
 export default function contribute(plugin: PluginContext) {
+  // 注册时刻只有宿主机环境可判 —— 没有客户端可问。面板内部走完整判定链
+  const t = translator(resolveLocale({ env: process.env, envKey: "PI_TODOS_LANG" }));
+
   plugin.handle(latestTodoRpc, getLatestTodo);
   plugin.handle(subagentCallsRpc, listSubagentCalls);
+  plugin.handle(localeRpc, getLocale);
+  plugin.handle(setLocaleRpc, setLocale);
 
   plugin.addTimelineTransformer({
     id: "pi-todo-tool-card",
@@ -67,7 +75,7 @@ export default function contribute(plugin: PluginContext) {
 
   plugin.addWorkspacePanel({
     id: "pi-subagents",
-    title: "Pi Subagents",
+    title: t.panel_subagents,
     icon: "Network",
     context: "agent",
     locations: ["workspace", "explorer"],
@@ -75,7 +83,7 @@ export default function contribute(plugin: PluginContext) {
   });
   plugin.addCommandCenterItem({
     id: "open-pi-subagents",
-    title: "Open Pi Subagents",
+    title: t.nav_open_subagents,
     icon: "Network",
     keywords: ["pi", "children", "workflow", "agents"],
     context: "agent",

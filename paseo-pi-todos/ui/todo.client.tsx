@@ -11,36 +11,41 @@ import { useQuery } from "@tanstack/react-query";
 import React, { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
 import { latestTodoRpc, type TodoBoard, type TodoTask } from "../domain/contracts.shared";
+import { translator, type Translator } from "../domain/i18n.shared";
+import { localeFromTag } from "../domain/locale.shared";
+import { detectClientLocale, LanguagePicker, useLocale } from "./locale.client";
 
-function statusMeta(status: TodoTask["status"], theme: PluginTheme) {
-  if (status === "completed") return { icon: "CheckCircle2", label: "完成", color: theme.colors.statusSuccess };
-  if (status === "in_progress") return { icon: "LoaderCircle", label: "进行中", color: theme.colors.accent };
-  if (status === "deleted") return { icon: "CircleOff", label: "已删除", color: theme.colors.foregroundMuted };
-  return { icon: "Circle", label: "待处理", color: theme.colors.foregroundMuted };
+function statusMeta(status: TodoTask["status"], theme: PluginTheme, t: Translator) {
+  if (status === "completed") return { icon: "CheckCircle2", label: t.status_completed, color: theme.colors.statusSuccess };
+  if (status === "in_progress") return { icon: "LoaderCircle", label: t.status_in_progress, color: theme.colors.accent };
+  if (status === "deleted") return { icon: "CircleOff", label: t.status_deleted, color: theme.colors.foregroundMuted };
+  return { icon: "Circle", label: t.status_pending, color: theme.colors.foregroundMuted };
 }
 
-function actionLabel(board: TodoBoard): string {
+function actionLabel(board: TodoBoard, t: Translator): string {
   const suffix = board.changedId === undefined ? "" : ` #${board.changedId}`;
   return ({
-    create: `新增任务${suffix}`,
-    update: `更新任务${suffix}`,
-    delete: `删除任务${suffix}`,
-    clear: "清空任务",
-    list: "刷新任务",
-    get: `查看任务${suffix}`,
-    snapshot: "任务状态",
-  } as Record<string, string>)[board.action] ?? "任务状态更新";
+    create: t.action_create(suffix),
+    update: t.action_update(suffix),
+    delete: t.action_delete(suffix),
+    clear: t.action_clear,
+    list: t.action_list,
+    get: t.action_get(suffix),
+    snapshot: t.action_snapshot,
+  } as Record<string, string>)[board.action] ?? t.action_default;
 }
 
 function BoardView({
   board,
   theme,
   compact,
+  t,
   initiallyExpanded = false,
 }: {
   board: TodoBoard;
   theme: PluginTheme;
   compact: boolean;
+  t: Translator;
   initiallyExpanded?: boolean;
 }) {
   const [expanded, setExpanded] = useState(initiallyExpanded);
@@ -75,7 +80,7 @@ function BoardView({
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 7, flexShrink: 1 }}>
           <Icon name="ListTodo" size={17} color={theme.colors.accent} />
-          <Text style={{ color: theme.colors.foreground, fontWeight: "800", fontSize: 15 }}>Pi 任务进度</Text>
+          <Text style={{ color: theme.colors.foreground, fontWeight: "800", fontSize: 15 }}>{t.todo_title}</Text>
         </View>
         <Text style={{ color: theme.colors.foreground, fontWeight: "800" }}>{completed}/{liveTasks.length}</Text>
       </View>
@@ -85,15 +90,15 @@ function BoardView({
       </View>
 
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-        <Text style={styles.muted}>{actionLabel(board)}</Text>
-        <Text style={{ color: running.length ? theme.colors.accent : theme.colors.foregroundMuted, fontSize: 12 }}>进行中 {running.length}</Text>
-        <Text style={styles.muted}>待处理 {pending.length}</Text>
+        <Text style={styles.muted}>{actionLabel(board, t)}</Text>
+        <Text style={{ color: running.length ? theme.colors.accent : theme.colors.foregroundMuted, fontSize: 12 }}>{t.count_running(running.length)}</Text>
+        <Text style={styles.muted}>{t.count_pending(pending.length)}</Text>
         <Text style={styles.muted}>{percent}%</Text>
       </View>
 
-      {visibleTasks.length === 0 ? <Text style={styles.muted}>当前没有任务</Text> : null}
+      {visibleTasks.length === 0 ? <Text style={styles.muted}>{t.todo_empty}</Text> : null}
       {visibleTasks.map((task) => {
-        const meta = statusMeta(task.status, theme);
+        const meta = statusMeta(task.status, theme, t);
         return (
           <View
             key={String(task.id)}
@@ -138,7 +143,7 @@ function BoardView({
           style={{ alignSelf: "flex-start", paddingVertical: 4 }}
         >
           <Text style={{ color: theme.colors.accent, fontWeight: "700" }}>
-            {expanded ? "收起任务列表" : `查看全部 ${liveTasks.length} 项`}
+            {expanded ? t.todo_collapse : t.todo_expand(liveTasks.length)}
           </Text>
         </Pressable>
       ) : null}
@@ -146,13 +151,16 @@ function BoardView({
   );
 }
 
-export function TodoTimelineCard({ item, theme, layout }: PluginTimelineItemProps<TodoBoard>) {
-  return <BoardView board={item.data} theme={theme} compact={layout.compact} />;
+export function TodoTimelineCard({ item, theme, layout, host }: PluginTimelineItemProps<TodoBoard>) {
+  const { t } = useLocale(host.id);
+  return <BoardView board={item.data} theme={theme} compact={layout.compact} t={t} />;
 }
 
 const cardOpeners = new Map<string, () => void>();
 
 function TodoStatusPill({ theme, host, layout, agentId }: PluginComposerPillProps) {
+  const localeCtx = useLocale(host.id);
+  const t = localeCtx.t;
   const latestTodo = useRpc(latestTodoRpc);
   const agentStatus = useAgent(agentId, (agent) => agent.status);
   const [open, setOpen] = useState(false);
@@ -193,13 +201,14 @@ function TodoStatusPill({ theme, host, layout, agentId }: PluginComposerPillProp
           {label}
         </Text>
       </View>
-      <Modal title="Pi Todo List" open={open} onOpenChange={setOpen}>
+      <Modal title={t.modal_todos} open={open} onOpenChange={setOpen}>
         <Modal.Content>
           <ScrollView style={{ maxHeight: layout.compact ? 520 : 620 }} contentContainerStyle={{ padding: 12 }}>
             {query.isLoading ? <ActivityIndicator color={theme.colors.accent} /> : null}
             {query.error ? <Text style={{ color: theme.colors.statusDanger }}>{query.error instanceof Error ? query.error.message : String(query.error)}</Text> : null}
-            {board ? <BoardView board={board} theme={theme} compact={layout.compact} initiallyExpanded /> : null}
-            {!query.isLoading && !query.error && !board ? <Text style={{ color: theme.colors.foregroundMuted }}>这个 Agent 还没有 Pi todo 数据。</Text> : null}
+            {board ? <BoardView board={board} theme={theme} compact={layout.compact} t={t} initiallyExpanded /> : null}
+            {!query.isLoading && !query.error && !board ? <Text style={{ color: theme.colors.foregroundMuted }}>{t.todo_none_for_agent}</Text> : null}
+            <LanguagePicker ctx={localeCtx} hostId={host.id} theme={theme} />
           </ScrollView>
         </Modal.Content>
       </Modal>
@@ -208,6 +217,10 @@ function TodoStatusPill({ theme, host, layout, agentId }: PluginComposerPillProp
 }
 
 export function contributeTodoPills(client: PluginClientContext) {
+  // ⚠️ 这里是注册时刻，不是 React 渲染，拿不到 useLocale。
+  // pill 的 title 只是个 tooltip，用客户端自己的语言足够；
+  // 用户真正阅读的弹窗内容走完整的服务端判定（含共享设置）。
+  const t = translator(localeFromTag(detectClientLocale()) ?? "en");
   const pills = new Map<string, { workspaceId: string; remove: () => void }>();
   let active = true;
 
@@ -231,7 +244,7 @@ export function contributeTodoPills(client: PluginClientContext) {
       workspaceId,
       remove: client.addComposerPill({
         id: "pi-todos",
-        title: "Open Pi todo list",
+        title: t.nav_open_todos,
         workspaceId,
         agentId,
         Component: TodoStatusPill,
