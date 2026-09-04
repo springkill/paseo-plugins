@@ -137,10 +137,7 @@ export const PiNoticeSchema = z.object({
   replyTo: z.string().max(200).optional(),
   signal: z.string().max(2000).optional(),
   facts: z.array(z.string().max(200)).max(12).default([]),
-  hint: z.string().max(2000).optional(),
   recentFailures: z.string().max(2000).optional(),
-  /** completion_guard 的补救说明。 */
-  next: z.string().max(2000).optional(),
 
   // ── wait ──
   token: z.string().max(200).optional(),

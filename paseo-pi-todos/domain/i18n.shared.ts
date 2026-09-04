@@ -112,7 +112,6 @@ const CATALOG = {
   notice_status_paused: { zh: "已暂停", en: "Paused" },
   notice_status_stopped: { zh: "已停止", en: "Stopped" },
   notice_status_running: { zh: "运行中", en: "Running" },
-  notice_status_attention: { zh: "待处理", en: "Needs attention" },
   notice_status_timed_out: { zh: "已超时", en: "Timed out" },
   notice_status_unresolved: { zh: "无法确认", en: "Unresolved" },
 
@@ -135,8 +134,6 @@ const CATALOG = {
   notice_output_file: { zh: "输出", en: "Output" },
   notice_saved_output: { zh: "已存到", en: "Saved to" },
   notice_signal: { zh: "信号", en: "Signal" },
-  notice_hint: { zh: "建议", en: "Hint" },
-  notice_next: { zh: "下一步", en: "Next" },
   notice_recent_failures: { zh: "近期失败", en: "Recent failures" },
   notice_run: { zh: "Run", en: "Run" },
   notice_schedule: (name: string) => ({ zh: `定时任务 ${name}`, en: `schedule ${name}` }),
@@ -158,6 +155,10 @@ const CATALOG = {
   notice_model_only_body: {
     zh: "这条是 Pi 发给模型的上下文，它自己的界面从不显示。Paseo 不看 display 标记，所以漏到了这里。",
     en: "Pi sends this to the model only and never shows it. Paseo ignores the display flag, so it leaked here.",
+  },
+  notice_control_body: {
+    zh: "Pi 已经把这条投给父 agent 并唤醒它处理，不需要你操作。",
+    en: "Pi already delivered this to the parent agent and woke it to handle; nothing for you to do.",
   },
   notice_supervisor_body: {
     zh: "这是 subagent 发给父 agent 的内部通信，要靠模型调 subagent_supervisor 回复，不需要你操作。Paseo 真正需要你回答的提问会弹带选项的对话框。",

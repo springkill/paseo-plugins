@@ -318,6 +318,10 @@ test("⭐ control notice：给模型抄的工具调用一律不进卡片", () =>
   for (const boilerplate of ["subagent({", "Top-level live async nudge", "Interrupt:", "Direct intercom target"]) {
     assert.ok(!dumped.includes(boilerplate), `${boilerplate} 对人零信息量`);
   }
+  // Hint / Next 是 subagent-control.ts 里的硬编码常量，说的是 steer/resume
+  // 这类只有模型能做的动作。留在卡片上会让人以为该自己动手。
+  assert.ok(!dumped.includes("Use steer for"), "Hint 是给模型的固定话术");
+  assert.ok(!dumped.includes("Inspect status first"));
 });
 
 test("⭐ control notice 的另外两种形态", () => {
@@ -328,7 +332,6 @@ Next: read the output artifact or session from the subagent result, then retry.`
   assert.equal(failed.variant, "failed");
   assert.equal(failed.status, "failed");
   assert.equal(failed.step, 2);
-  assert.ok(failed.next?.startsWith("read the output artifact"));
 
   const longRunning = parsePiNoticeText(ATTENTION.replace(
     "Subagent needs attention:", "Subagent active but long-running:",

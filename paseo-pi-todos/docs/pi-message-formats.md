@@ -191,6 +191,21 @@ Reply with: subagent_supervisor({ action: "reply", replyTo: "{uuid}", message: "
 
 ## 5. `subagent_control_notice`（`formatControlNoticeMessage`）
 
+> ⚠️ **和 §4 一样，这也不是给人的待办。**
+>
+> `control-notices.ts` 里是
+> `pi.sendMessage(…, { triggerTurn: source === "async" })` ——
+> 注入**父 agent 的 LLM 上下文并唤醒它**去处理。`display: true` 只是让 Pi 的 TUI
+> 顺带展示一下。
+>
+> `Hint:` 和 `Next:` 是 `subagent-control.ts` 里的**硬编码常量**，逐条零信息量，
+> 内容是让模型去调 `subagent({ action: "steer" / "resume" / "status" })` ——
+> 只有模型能做。**不要解析进卡片**，否则用户会以为自己该动手。
+>
+> 本插件保留警示色（子任务长跑/卡住值得一眼看到）但不给强调边框、不挂状态角标，
+> 并明说「已投给父 agent 处理」。
+
+
 **三种**，靠首行区分：
 
 ### 5a `Subagent failed: {agent}` — `reason === "completion_guard"`

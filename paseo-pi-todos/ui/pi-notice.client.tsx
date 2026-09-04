@@ -68,8 +68,10 @@ function headline(notice: PiNotice, t: Translator): string {
 function visuals(notice: PiNotice, theme: PluginTheme) {
   // ⭐ supervisor 不在这里 —— 它不是问你，见下面 COLLAPSED 的说明。
   // 只有「需要关注」是真的停住并且要人介入。
-  if (notice.kind === "control" && notice.variant === "attention") {
-    return { icon: "TriangleAlert", color: theme.colors.statusWarning, accent: true };
+  // ⚠️ 留警示色（长跑/卡住值得一眼看到），但不给强调边框：
+  // 这条是发给父 agent 的，不是你的待办
+  if (notice.kind === "control" && notice.variant !== "failed") {
+    return { icon: "TriangleAlert", color: theme.colors.statusWarning, accent: false };
   }
   if (notice.status === "failed") {
     return { icon: "CircleX", color: theme.colors.statusDanger, accent: true };
@@ -90,13 +92,15 @@ function visuals(notice: PiNotice, theme: PluginTheme) {
 }
 
 function statusLabel(notice: PiNotice, t: Translator): string | null {
+  // control 的状态标题里已经写了（「Subagent 需要关注」），再挂个状态角标
+  // 只会让它更像一件待办
+  if (notice.kind === "control") return null;
   switch (notice.status) {
     case "completed": return t.notice_status_completed;
     case "failed": return t.notice_status_failed;
     case "paused": return t.notice_status_paused;
     case "stopped": return t.notice_status_stopped;
     case "running": return t.notice_status_running;
-    case "attention": return t.notice_status_attention;
     case "timed_out": return t.notice_status_timed_out;
     case "unresolved": return t.notice_status_unresolved;
     default: return null;
@@ -357,10 +361,10 @@ export function PiNoticeCard({ notice, theme, t }: {
         />
       ))}
 
-      {notice.next ? <Labelled label={t.notice_next} value={notice.next} theme={theme} /> : null}
-      {notice.hint ? (
+
+      {notice.kind === "control" ? (
         <Text style={{ color: theme.colors.foregroundMuted, fontSize: 11, lineHeight: 16 }}>
-          {t.notice_hint}: {notice.hint}
+          {t.notice_control_body}
         </Text>
       ) : null}
 

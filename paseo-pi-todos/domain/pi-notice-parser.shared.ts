@@ -508,10 +508,11 @@ function parseControlNotice(text: string): Partial<PiNotice> | null {
       signal: field(text, "Signal"),
       facts: facts ? facts.split(" | ").map((fact) => fact.trim()).filter(Boolean) : [],
       recentFailures: field(text, "Recent failures"),
-      hint: field(text, "Hint"),
-      next: field(text, "Next"),
-      // 剩下的 nudge / intercom target / Status / Interrupt 都是给模型抄的
-      // 工具调用，对人零信息量 —— 一律不带进卡片
+      // ⭐ Hint / Next 不解析：它们是 subagent-control.ts 里的**硬编码常量**
+      // （"Use steer for a top-level live async child…"），逐条零信息量，
+      // 而且说的是 subagent({action:"steer"/"status"}) 这类工具动作 ——
+      // 只有模型能做。放进卡片只会让人以为自己该动手。
+      // 同理丢掉 nudge / intercom target / Status / Interrupt 那几行。
       body: "",
     };
   }
