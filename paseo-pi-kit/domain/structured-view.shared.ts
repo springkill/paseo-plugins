@@ -244,25 +244,7 @@ function classify(key: string, value: unknown, depth: number): ViewValue {
   return { kind: "text", text: String(value), multiline: false };
 }
 
-// ── 运行结果识别 ────────────────────────────────────────────────────
-
-/**
- * 这个对象是不是「一次运行的结果」。
- *
- * 判据要两边都占：既有成败位（`ok` 布尔 / `status` 字符串），
- * 又有身份或产物（`runId` / `output` / `error` …）。
- * 只占一边的话，一个恰好带 `id` 字段的普通配置对象也会被误判。
- */
-function isRunResult(object: Record<string, unknown>): boolean {
-  const hasVerdict =
-    OK_KEYS.some((key) => typeof object[key] === "boolean") ||
-    STATUS_KEYS.some((key) => typeof object[key] === "string" && (object[key] as string).trim().length > 0);
-  if (!hasVerdict) return false;
-  return (
-    IDENT_KEYS.some((key) => typeof object[key] === "string") ||
-    BODY_KEYS.some((key) => typeof object[key] === "string")
-  );
-}
+// ── 身份 / 状态 / 正文的提取 ──────────────────────────────────────
 
 function firstString(object: Record<string, unknown>, keys: string[], accept: (value: string) => boolean): { key: string; value: string } | null {
   for (const key of keys) {
@@ -437,15 +419,4 @@ export function buildStructuredView(value: unknown): StructuredView {
   const counts = { ok: 0, failed: 0, other: 0 };
   tally(nodes, counts);
   return { counts, nodes };
-}
-
-/** 节点里到底有没有东西可画 —— 全空时渲染层直接不画这一块。 */
-export function nodeIsEmpty(node: ViewNode): boolean {
-  return (
-    node.fields.length === 0 &&
-    node.lead === undefined &&
-    node.title === undefined &&
-    node.badge === undefined &&
-    node.ok === undefined
-  );
 }
