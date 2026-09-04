@@ -193,6 +193,7 @@ const CATALOG = {
   }),
 
   // ── 功能开关 ────────────────────────────────────────────────────
+  settings_sidebar: { zh: "Pi Kit", en: "Pi Kit" },
   settings_panel: { zh: "Pi Kit 设置", en: "Pi Kit Settings" },
   settings_open: { zh: "打开 Pi Kit 设置", en: "Open Pi Kit settings" },
   settings_features: { zh: "功能", en: "Features" },

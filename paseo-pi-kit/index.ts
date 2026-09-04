@@ -64,6 +64,14 @@ export default function contribute(plugin: PluginContext) {
   plugin.handle(featuresRpc, () => getFeatures());
   plugin.handle(setFeatureRpc, (input) => setFeature(input));
 
+  // ⭐ 侧栏是主入口 —— 只挂面板区和命令面板的话，不知道它存在的人永远找不到
+  plugin.addSurface("pi-kit", PiKitSettingsPanel);
+  plugin.addSidebarItem({
+    id: "pi-kit",
+    title: t.settings_sidebar,
+    icon: "SlidersHorizontal",
+    surface: "pi-kit",
+  });
   plugin.addWorkspacePanel({
     id: "pi-kit-settings",
     title: t.settings_panel,

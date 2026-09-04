@@ -69,6 +69,8 @@ test("⭐ client bundle 能 evaluate，且注册了全部贡献", { skip: COMPIL
     renderers: [] as string[],
     panels: [] as string[],
     commands: [] as string[],
+    surfaces: [] as string[],
+    sidebarItems: [] as string[],
     clientSides: 0,
   };
   const plugin = {
@@ -79,7 +81,9 @@ test("⭐ client bundle 能 evaluate，且注册了全部贡献", { skip: COMPIL
     addWorkspacePanel: (c: { id: string }) => seen.panels.push(c.id),
     addCommandCenterItem: (c: { id: string }) => seen.commands.push(c.id),
     addClientSide: () => { seen.clientSides++; },
-    addSurface: () => {}, addSidebarItem: () => {}, addAttachmentSource: () => {}, addTheme: () => {},
+    addSurface: (id: string) => seen.surfaces.push(id),
+    addSidebarItem: (c: { id: string }) => seen.sidebarItems.push(c.id),
+    addAttachmentSource: () => {}, addTheme: () => {},
   };
 
   // eslint-disable-next-line no-eval -- 就是要按宿主的方式执行它
@@ -99,6 +103,9 @@ test("⭐ client bundle 能 evaluate，且注册了全部贡献", { skip: COMPIL
   assert.deepEqual(seen.panels.toSorted(), ["pi-kit-settings", "pi-subagents"]);
   assert.deepEqual(seen.commands.toSorted(), ["open-pi-kit-settings", "open-pi-subagents"]);
   assert.equal(seen.clientSides, 1);
+  // ⭐ 侧栏入口不能少 —— 没有它，功能开关等于不存在
+  assert.deepEqual(seen.surfaces, ["pi-kit"]);
+  assert.deepEqual(seen.sidebarItems, ["pi-kit"]);
 
   // cleanup 里引用 .server 符号是另一个踩过的坑（closeProviderUsageClient）
   assert.doesNotThrow(() => cleanup?.(), "cleanup 不该在客户端 ReferenceError");

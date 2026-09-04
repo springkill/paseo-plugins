@@ -9,7 +9,7 @@
  * - 重载会掐断当前连接，查询失败是**预期内**的，靠 refetch 恢复而不是报错
  */
 
-import { type PluginAgentPanelProps, type PluginWorkspacePanelProps, useRpc } from "@getpaseo/plugin";
+import { type PluginAgentPanelProps, type PluginSurfaceProps, useRpc } from "@getpaseo/plugin";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import React from "react";
 import { Pressable, ScrollView, Switch, Text, View } from "react-native";
@@ -29,7 +29,14 @@ function label(feature: Feature, t: Translator): { title: string; desc: string }
   }
 }
 
-export function PiKitSettingsPanel({ theme, host }: PluginWorkspacePanelProps) {
+/**
+ * 设置界面。同时当**侧栏 surface** 和 **workspace 面板**用 ——
+ * 两者 props 同源（都继承 PluginNavigableHostProps），这里只用到 theme / host。
+ *
+ * ⭐ 侧栏那个入口是主要入口：面板区和命令面板都得先知道要找什么才找得到，
+ * 而功能开关是「不知道它存在就永远不会去找」的东西。
+ */
+export function PiKitSettingsPanel({ theme, host }: PluginSurfaceProps) {
   const ctx = useLocale(host.id);
   const t = ctx.t;
   const getFeatures = useRpc(featuresRpc);
