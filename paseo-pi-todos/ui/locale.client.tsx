@@ -8,27 +8,57 @@
 import { type PluginTheme, useRpc } from "@getpaseo/plugin";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import React from "react";
-import { Pressable, Text, View } from "react-native";
+import { NativeModules, Pressable, Text, View } from "react-native";
 import { localeRpc, setLocaleRpc } from "../domain/contracts.shared";
 import { translator, type Translator } from "../domain/i18n.shared";
 import { LOCALE_NATIVE_NAME, LOCALES, type Locale, type LocalePreference } from "../domain/locale.shared";
 
 /**
- * 客户端自己是什么语言。
+ * 客户端自己是什么语言 —— **对齐 Paseo 自己的取法**。
  *
- * 只负责**报告**，判定在服务端 —— 两边各判一次必然判出不一样的结果。
- * Paseo 能从手机或浏览器访问，所以"看界面的人"和"跑 daemon 的机器"要分开。
+ * Paseo 的原逻辑（web-ui bundle 里读出来的）：
+ *
+ * ```js
+ * isWeb && navigator.languages.length > 0
+ *   ? [...navigator.languages]              // web：浏览器语言列表
+ *   : getLocales().map(e => e.languageTag)  // 原生：expo-localization 取系统 locale
+ * ```
+ *
+ * 插件拿不到 `expo-localization`（它不在宿主提供的 external 列表里），
+ * 所以原生那半边用 `react-native` 的 `NativeModules` 取同一个系统值，
+ * 最后再退到 `Intl`。顺序刻意与 Paseo 一致，免得同一台机器上
+ * Paseo 显示一种语言、插件显示另一种。
+ *
+ * ⚠️ 只负责**报告**，判定在服务端 —— 两边各判一次必然判出不一样的结果。
  */
 export function detectClientLocale(): string | undefined {
+  // ① web：与 Paseo 完全同源
   try {
     const globals = globalThis as unknown as {
       navigator?: { language?: string; languages?: readonly string[] };
     };
-    const fromNavigator = globals.navigator?.languages?.[0] ?? globals.navigator?.language;
-    if (fromNavigator) return fromNavigator;
+    const languages = globals.navigator?.languages;
+    if (languages && languages.length > 0) return languages[0];
+    if (globals.navigator?.language) return globals.navigator.language;
   } catch {
     // 沙箱里可能没有 navigator
   }
+
+  // ② 原生：expo-localization 读的就是这两个系统值
+  try {
+    const modules = (NativeModules ?? {}) as Record<string, Record<string, unknown> | undefined>;
+    const ios = modules.SettingsManager?.settings as
+      | { AppleLocale?: string; AppleLanguages?: string[] }
+      | undefined;
+    const fromIos = ios?.AppleLocale ?? ios?.AppleLanguages?.[0];
+    if (typeof fromIos === "string" && fromIos) return fromIos;
+    const android = modules.I18nManager?.localeIdentifier;
+    if (typeof android === "string" && android) return android;
+  } catch {
+    // 非原生环境没有 NativeModules
+  }
+
+  // ③ 兜底
   try {
     return new Intl.DateTimeFormat().resolvedOptions().locale;
   } catch {
