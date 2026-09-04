@@ -197,14 +197,19 @@ const CATALOG = {
   settings_open: { zh: "打开 Pi Kit 设置", en: "Open Pi Kit settings" },
   settings_features: { zh: "功能", en: "Features" },
   settings_features_hint: {
-    zh: "关掉后时间线卡片立即消失；面板、命令面板项与 composer pill 要重载插件才消失。",
-    en: "Disabling hides timeline cards immediately; panels, command items and composer pills go away after a reload.",
+    zh: "关掉后时间线卡片与 composer pill 立即消失，不需要重载。",
+    en: "Disabling removes timeline cards and composer pills immediately — no reload needed.",
   },
-  // ⚠️ 别删：这句是在解释「为什么我关了但菜单还在」
-  settings_needs_reload: {
-    zh: "时间线卡片已经生效。面板与 composer pill 是加载时注册的，重载后才消失：",
-    en: "Timeline cards already changed. Panels and composer pills are registered at load time; reload to drop them:",
+  // ⚠️ 别删：这句是在解释「为什么我关了但菜单里还有」
+  settings_menu_note: {
+    zh: "改动立即生效。「Pi Subagents」的面板入口会留在菜单里 —— Paseo 的注册 API 不支持注销，点进去会告诉你它已关闭。",
+    en: "Changes apply immediately. The “Pi Subagents” entry stays in menus — Paseo's registration API has no way to remove it; opening it says the feature is off.",
   },
+  feature_disabled: {
+    zh: "这个功能已经关掉了。",
+    en: "This feature is turned off.",
+  },
+  feature_enable: { zh: "打开", en: "Enable" },
   feature_todos: { zh: "任务列表", en: "Todo list" },
   feature_todos_desc: {
     zh: "把 Pi 的 todo 工具调用和 Paseo 原生 todo 换成进度卡，并在 composer 显示完成数",

@@ -31,20 +31,22 @@ import {
   subagentCallsRpc,
   TodoBoardSchema,
 } from "./domain/contracts.shared";
+import type { Feature } from "./domain/features.shared";
 import { translator } from "./domain/i18n.shared";
 import { resolveLocale } from "./domain/locale.shared";
 import { parsePiNoticeTimelineItem } from "./domain/pi-notice-parser.shared";
 import { parseSubagentTimelineItem } from "./domain/subagent-parser.shared";
 import { parseTodoTimelineItem } from "./domain/todo-parser.shared";
-import { getFeatures, readFlags, setFeature } from "./server/features.server";
+import { getFeatures, setFeature } from "./server/features.server";
 import { getLocale, setLocale } from "./server/locale.server";
 import { closeProviderUsageClient, listProviderUsage } from "./server/provider-usage.server";
 import { listSubagentCalls } from "./server/subagents.server";
 import { getLatestTodo } from "./server/todo.server";
 import { PiNoticeTimelineCard } from "./ui/pi-notice.client";
 import { contributeProviderUsagePills } from "./ui/usage-pill.client";
-import { PiKitSettingsPanel } from "./ui/settings.client";
-import { contributeSubagentPills, PiSubagentsPanel, SubagentTimelineCard } from "./ui/subagents.client";
+import { isFeatureEnabled, primeClientFlags, subscribeClientFlags } from "./ui/features.client";
+import { GatedSubagentsPanel, PiKitSettingsPanel } from "./ui/settings.client";
+import { contributeSubagentPills, SubagentTimelineCard } from "./ui/subagents.client";
 import { contributeTodoPills, TodoTimelineCard } from "./ui/todo.client";
 import type { PluginTimelineData } from "@getpaseo/plugin";
 
@@ -53,7 +55,6 @@ function timelineData(value: unknown): PluginTimelineData {
 }
 
 export default function contribute(plugin: PluginContext) {
-  const flags = readFlags();
   // 注册时刻只有宿主机环境可判 —— 没有客户端可问。面板内部走完整判定链
   const t = translator(resolveLocale({ env: process.env, envKey: "PI_KIT_LANG" }));
 
@@ -83,13 +84,13 @@ export default function contribute(plugin: PluginContext) {
   });
 
   // ── todos ────────────────────────────────────────────────────────
-  if (flags.todos) plugin.handle(latestTodoRpc, getLatestTodo);
+  plugin.handle(latestTodoRpc, getLatestTodo);
   // Pi 的 todo 工具调用
   plugin.addTimelineTransformer({
     id: "pi-todo-tool-card",
     query: { itemType: "tool_call" },
     transform({ item }) {
-      if (!readFlags().todos) return;
+      if (!isFeatureEnabled("todos")) return;
       const board = parseTodoTimelineItem(item);
       if (!board) return;
       return { items: [{ type: "plugin", kind: "pi-todo-board", version: 1, data: timelineData(board) }] };
@@ -100,7 +101,7 @@ export default function contribute(plugin: PluginContext) {
     id: "native-todo-card",
     query: { itemType: "todo" },
     transform({ item }) {
-      if (!readFlags().todos) return;
+      if (!isFeatureEnabled("todos")) return;
       const board = parseTodoTimelineItem(item);
       if (!board) return;
       return { items: [{ type: "plugin", kind: "pi-todo-board", version: 1, data: timelineData(board) }] };
@@ -118,7 +119,7 @@ export default function contribute(plugin: PluginContext) {
     id: "pi-subagent-card",
     query: { itemType: "tool_call" },
     transform({ item }) {
-      if (!readFlags().subagents) return;
+      if (!isFeatureEnabled("subagents")) return;
       const call = parseSubagentTimelineItem(item);
       if (!call) return;
       return { items: [{ type: "plugin", kind: "pi-subagent-card", version: 1, data: timelineData(call) }] };
@@ -130,28 +131,27 @@ export default function contribute(plugin: PluginContext) {
     schema: SubagentCallSchema,
     Component: SubagentTimelineCard,
   });
-  // ⚠️ 面板与命令项只能在这里决定 —— 注册了就摘不掉
-  if (flags.subagents) {
-    plugin.handle(subagentCallsRpc, listSubagentCalls);
-    plugin.addWorkspacePanel({
-      id: "pi-subagents",
-      title: t.panel_subagents,
-      icon: "Network",
-      context: "agent",
-      locations: ["workspace", "explorer"],
-      Component: PiSubagentsPanel,
-    });
-    plugin.addCommandCenterItem({
-      id: "open-pi-subagents",
-      title: t.nav_open_subagents,
-      icon: "Network",
-      keywords: ["pi", "children", "workflow", "agents"],
-      context: "agent",
-      onSelect({ openPanel }) {
-        openPanel("pi-subagents");
-      },
-    });
-  }
+  plugin.handle(subagentCallsRpc, listSubagentCalls);
+  // ⚠️ 面板与命令项无条件注册 —— 它们活在 client bundle，那边读不到开关文件。
+  // 关掉时由面板自己渲染「已关闭」，菜单入口会留着。
+  plugin.addWorkspacePanel({
+    id: "pi-subagents",
+    title: t.panel_subagents,
+    icon: "Network",
+    context: "agent",
+    locations: ["workspace", "explorer"],
+    Component: GatedSubagentsPanel,
+  });
+  plugin.addCommandCenterItem({
+    id: "open-pi-subagents",
+    title: t.nav_open_subagents,
+    icon: "Network",
+    keywords: ["pi", "children", "workflow", "agents"],
+    context: "agent",
+    onSelect({ openPanel }) {
+      openPanel("pi-subagents");
+    },
+  });
 
   // ── notices ──────────────────────────────────────────────────────
   // ⚠️ Pi 的 custom_message 被 Paseo 的 pi/history-mapper 拍平成了普通助手消息
@@ -161,7 +161,7 @@ export default function contribute(plugin: PluginContext) {
     id: "pi-notice-card",
     query: { itemType: "assistant_message" },
     transform({ item }) {
-      if (!readFlags().notices) return;
+      if (!isFeatureEnabled("notices")) return;
       const notice = parsePiNoticeTimelineItem(item);
       if (!notice) return;
       return { items: [{ type: "plugin", kind: "pi-notice", version: 1, data: timelineData(notice) }] };
@@ -175,24 +175,47 @@ export default function contribute(plugin: PluginContext) {
   });
 
   // ── balances ─────────────────────────────────────────────────────
-  if (flags.balances) {
-    plugin.handle(providerUsageRpc, listProviderUsage);
-  }
+  plugin.handle(providerUsageRpc, listProviderUsage);
 
   // ── 客户端侧（composer pill）─────────────────────────────────────
   // pill 在**客户端**注册，那边读不到服务端的开关文件，所以只能加载期决定。
   plugin.addClientSide((client) => {
-    const cleanups = [
-      flags.todos ? contributeTodoPills(client) : null,
-      flags.subagents ? contributeSubagentPills(client) : null,
-      flags.balances ? contributeProviderUsagePills(client) : null,
-    ].filter((cleanup): cleanup is () => void => cleanup !== null);
+    // 客户端拿不到服务端的开关文件，得自己拉一次（PluginClientContext 带 rpc）
+    void primeClientFlags(client);
+
+    // ⭐ pill 是唯一能真正增删的贡献（addComposerPill 返回 cleanup），
+    // 所以这里订阅开关变化，开就挂上、关就摘掉，不需要重载。
+    const contributors: Array<[Feature, (c: typeof client) => () => void]> = [
+      ["todos", contributeTodoPills],
+      ["subagents", contributeSubagentPills],
+      ["balances", contributeProviderUsagePills],
+    ];
+    const active = new Map<Feature, () => void>();
+    const sync = () => {
+      for (const [feature, contributePills] of contributors) {
+        const on = isFeatureEnabled(feature);
+        const running = active.get(feature);
+        if (on && !running) active.set(feature, contributePills(client));
+        if (!on && running) {
+          running();
+          active.delete(feature);
+        }
+      }
+    };
+    sync();
+    const unsubscribe = subscribeClientFlags(sync);
     return () => {
-      for (const cleanup of cleanups.reverse()) cleanup();
+      unsubscribe();
+      for (const cleanup of active.values()) cleanup();
+      active.clear();
     };
   });
 
   return () => {
-    if (flags.balances) closeProviderUsageClient();
+    // ⚠️ 这个 cleanup 在两个 bundle 里都存在，但 closeProviderUsageClient 只有
+    // server bundle 里有定义 —— client 那边的 `.server` import 被编译器整条删了。
+    // 不加 typeof 守卫的话，Paseo 应用卸载插件时会 ReferenceError。
+    // （对未声明标识符做 typeof 是安全的，不会抛。）
+    if (typeof closeProviderUsageClient === "function") closeProviderUsageClient();
   };
 }

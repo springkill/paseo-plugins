@@ -19,7 +19,6 @@ import { dirname, join } from "node:path";
 import { paseoHome } from "./daemon.server";
 import {
   DEFAULT_FLAGS,
-  HAS_STATIC_SURFACE,
   normalizeFlags,
   type Feature,
   type FeatureFlags,
@@ -81,10 +80,8 @@ export function getFeatures(): { flags: FeatureFlags } {
 
 export async function setFeature(input: { feature: Feature; enabled: boolean }): Promise<{
   flags: FeatureFlags;
-  needsReload: boolean;
 }> {
   const flags = { ...readFlags(), [input.feature]: input.enabled };
   await writeFlags(flags);
-  // 卡片立刻就变；面板 / 命令项 / pill 是加载期注册的，得等下次重载
-  return { flags, needsReload: HAS_STATIC_SURFACE[input.feature] };
+  return { flags };
 }

@@ -9,15 +9,16 @@
  * - 重载会掐断当前连接，查询失败是**预期内**的，靠 refetch 恢复而不是报错
  */
 
-import { type PluginWorkspacePanelProps, useRpc } from "@getpaseo/plugin";
-import { Icon } from "@getpaseo/plugin/react-native";
+import { type PluginAgentPanelProps, type PluginWorkspacePanelProps, useRpc } from "@getpaseo/plugin";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import React from "react";
 import { Pressable, ScrollView, Switch, Text, View } from "react-native";
 import { featuresRpc, setFeatureRpc } from "../domain/contracts.shared";
 import { FEATURES, type Feature } from "../domain/features.shared";
 import type { Translator } from "../domain/i18n.shared";
+import { getClientFlags, setClientFlags, subscribeClientFlags } from "./features.client";
 import { LanguagePicker, useLocale } from "./locale.client";
+import { PiSubagentsPanel } from "./subagents.client";
 
 function label(feature: Feature, t: Translator): { title: string; desc: string } {
   switch (feature) {
@@ -35,7 +36,6 @@ export function PiKitSettingsPanel({ theme, host }: PluginWorkspacePanelProps) {
   const setFeature = useRpc(setFeatureRpc);
   const queryClient = useQueryClient();
 
-  const [needsReload, setNeedsReload] = React.useState(false);
   const query = useQuery({
     queryKey: ["pi-kit", "features", host.id],
     queryFn: () => getFeatures({}),
@@ -45,7 +45,8 @@ export function PiKitSettingsPanel({ theme, host }: PluginWorkspacePanelProps) {
     mutationFn: (input: { feature: Feature; enabled: boolean }) => setFeature(input),
     onSuccess(value) {
       queryClient.setQueryData(["pi-kit", "features", host.id], { flags: value.flags });
-      if (value.needsReload) setNeedsReload(true);
+      // ⭐ 同一个 client bundle 里的模块级缓存 —— 喂进去，transformer 和 pill 立刻跟上
+      setClientFlags(value.flags);
     },
   });
 
@@ -93,22 +94,52 @@ export function PiKitSettingsPanel({ theme, host }: PluginWorkspacePanelProps) {
         );
       })}
 
-      {/* ⚠️ 说清楚哪一半已经生效、哪一半还没 —— 别让人以为开关没用 */}
-      {needsReload ? (
-        <View style={{ gap: 4, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: theme.colors.statusWarning }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-            <Icon name="RefreshCw" size={13} color={theme.colors.statusWarning} />
-            <Text style={{ color: theme.colors.statusWarning, fontSize: 12, fontWeight: "700" }}>
-              {t.settings_needs_reload}
-            </Text>
-          </View>
-          <Text selectable style={{ color: theme.colors.foregroundMuted, fontFamily: "monospace", fontSize: 11 }}>
-            paseo plugin reload paseo-pi-kit
-          </Text>
-        </View>
-      ) : null}
+      <Text style={{ color: theme.colors.foregroundMuted, fontSize: 11, lineHeight: 16 }}>
+        {t.settings_menu_note}
+      </Text>
 
       <LanguagePicker ctx={ctx} hostId={host.id} theme={theme} />
     </ScrollView>
+  );
+}
+
+/**
+ * 关掉 subagents 之后，面板与命令面板项仍然在 —— 它们注册在 client bundle，
+ * 那边读不到服务端开关，注册时无从判断，而 SDK 又不给注销句柄。
+ *
+ * 所以入口留着，点进来如实说明，并给一个就地打开的按钮。
+ */
+export function GatedSubagentsPanel(props: PluginAgentPanelProps) {
+  const { t } = useLocale(props.host.id);
+  const setFeature = useRpc(setFeatureRpc);
+  const [flags, setFlags] = React.useState(getClientFlags);
+  React.useEffect(() => subscribeClientFlags(() => setFlags(getClientFlags())), []);
+
+  if (flags.subagents) return <PiSubagentsPanel {...props} />;
+  return (
+    <View style={{ padding: 16, gap: 10, alignItems: "flex-start" }}>
+      <Text style={{ color: props.theme.colors.foreground, fontSize: 13, fontWeight: "700" }}>
+        {t.feature_subagents}
+      </Text>
+      <Text style={{ color: props.theme.colors.foregroundMuted, fontSize: 12, lineHeight: 18 }}>
+        {t.feature_disabled}
+      </Text>
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => {
+          void setFeature({ feature: "subagents", enabled: true }).then((r) => setClientFlags(r.flags));
+        }}
+        style={{
+          paddingVertical: 6,
+          paddingHorizontal: 12,
+          borderRadius: 8,
+          backgroundColor: props.theme.colors.accent,
+        }}
+      >
+        <Text style={{ color: props.theme.colors.accentForeground, fontSize: 12, fontWeight: "700" }}>
+          {t.feature_enable}
+        </Text>
+      </Pressable>
+    </View>
   );
 }

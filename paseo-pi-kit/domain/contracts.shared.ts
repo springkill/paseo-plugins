@@ -12,9 +12,8 @@ export const FeatureFlagsSchema = z.object(
 /**
  * 功能开关。
  *
- * `needsReload: true` 表示这个功能有加载期注册的东西（面板 / 命令项 / pill），
- * 卡片已经立刻变了，但那些要下次重载才消失。插件**不会自己重载** ——
- * 原因见 server/features.server.ts 顶部。
+ * 改完立即生效，不需要重载 —— 门控在回调体里，不在注册处。
+ * 为什么不能在注册处判断，见 ui/features.client.ts 顶部。
  */
 export const featuresRpc = defineRpc({
   name: "pi-kit.features",
@@ -25,7 +24,7 @@ export const featuresRpc = defineRpc({
 export const setFeatureRpc = defineRpc({
   name: "pi-kit.set-feature",
   input: z.object({ feature: FeatureSchema, enabled: z.boolean() }),
-  output: z.object({ flags: FeatureFlagsSchema, needsReload: z.boolean() }),
+  output: z.object({ flags: FeatureFlagsSchema }),
 });
 export const LocalePreferenceSchema = z.enum(["auto", ...LOCALES]);
 
