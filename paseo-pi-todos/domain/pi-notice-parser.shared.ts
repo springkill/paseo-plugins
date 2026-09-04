@@ -1,6 +1,33 @@
 /**
  * Pi 的通知类消息解析。
  *
+ * ═══════════════════════════════════════════════════════════════════
+ * COMPAT(pi-custom-message): 上游修好就整个删掉这个文件。
+ *
+ * 加于 2026-09-04，针对 @getpaseo/server 0.7.2。
+ *
+ * **判断能不能删**（一条命令，实测可跑）：
+ *
+ * ```bash
+ * grep -rn --include='*.js' 'mapCustomMessage:' \
+ *   "$(npm root -g)/@getpaseo/cli/node_modules/@getpaseo/server/dist/server/server/agent/providers/pi/" | wc -l
+ * ```
+ *
+ * 找的是**对象字面量属性**（带冒号）—— 那才代表 provider 真的提供了这个钩子。
+ * 光找 `mapCustomMessage` 这个名字没用：它作为钩子的*声明*一直都在。
+ *
+ * - `0` = 仍未提供，这一层还需要（0.7.2 时是 0）
+ * - `≥1` = 上游接上了，可以删
+ *
+ * 一旦上游把 Pi 的 `custom_message` 映射成结构化时间线条目（带 details），
+ * 这里连同 `ui/pi-notice.client.tsx`、`PiNoticeSchema`、
+ * `tests/pi-notice.test.ts` 和 index.ts 里那个 transformer 一起删。
+ *
+ * ⚠️ 上游修好时这一层是**静默失效**的：时间线条目不再是 assistant_message，
+ * transformer 就不再触发，卡片安静地消失，没有任何报错。所以别指望它自己提醒你 ——
+ * 靠上面那条命令定期看一眼。
+ * ═══════════════════════════════════════════════════════════════════
+ *
  * ## 为什么要在文本层面解析
  *
  * Pi 产生的是带结构的 `custom_message`：

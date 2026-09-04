@@ -27,6 +27,17 @@ paseo plugin install https://github.com/springkill/paseo-plugins:paseo-pi-todos
 ⚠️ Paseo 插件是**受信任、不沙箱**的：后端代码在你的机器上以你的身份运行。
 详见仓库根目录的 [README](../README.md#-安装前请知道)。
 
+## 一层兼容代码
+
+`domain/pi-notice-parser.shared.ts` 是**临时的**，标了 `COMPAT(pi-custom-message)`。
+
+Pi 的通知消息（后台任务、workflow、subagent 督导）本来带完整的 `details`，
+但 Paseo 的 `pi/history-mapper` 把它们拍平成了普通助手消息，`details` 丢掉，
+用户看到的是裸的 `<background-task-notification>` XML。这一层从文本把它反解回来。
+
+上游一旦提供 `hooks.mapCustomMessage`，把这一层连同渲染器和测试一起删。
+判断方法写在那个文件的头部注释里。
+
 ## 开发
 
 ```bash
