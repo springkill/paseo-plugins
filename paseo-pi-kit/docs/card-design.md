@@ -217,3 +217,93 @@ typecheck 绿、69 条测试全绿、本机把 67 条真实通知全渲染一遍
 ```bash
 grep 'pi-kit report' ~/.paseo/daemon.log
 ```
+
+---
+
+## 四、真正的病根：Hermes 的循环变量捕获
+
+### ⚠️ 订正上一节
+
+§3 把安卓上的 `Plugin failed` 归给「Hermes 没有 Intl」。**那是错的。**
+后来让设备自己报了运行时指纹：
+
+```
+platform=android  hermes=true  intl=object  numFmt=true
+platform=web      hermes=false intl=object  numFmt=true
+```
+
+这台安卓的 Hermes **有完整 Intl**。§3 那些禁令作为可移植性卫生仍然成立
+（输出与语言环境无关是好事），但它们不是这个故障的原因。
+
+### 真正的原因
+
+`domain/locale.shared.ts` 的 `makeTranslator` 原来这么写：
+
+```ts
+for (const [key, entry] of Object.entries(catalog)) {
+  out[key] = typeof entry === "function"
+    ? (...args) => entry(...args)[locale]   // ← 闭包捕获循环变量
+    : entry[locale];
+}
+```
+
+V8 / JSC（web、桌面、Node）上完全正确：`for...of` 的 `const` **每轮迭代是独立
+binding**，每个闭包各自捕获自己那一轮的 `entry`。
+
+**安卓的 Hermes 上不是。** 所有闭包共享同一个 binding，于是每个函数型文案被
+调用时拿到的都是**最后一轮**的 `entry` —— 而 CATALOG 最后一条是个普通的
+`{ zh, en }` 对象。于是：
+
+```
+TypeError: Object is not a function
+  at apply (native)
+  at anonymous (:84:64)        ← makeTranslator 的那行闭包
+  at actionLabel (:2535:28)
+  at BoardView (:2591:149)
+```
+
+症状与之完全吻合：
+
+| 界面 | 用到的文案 | 安卓 |
+|---|---|---|
+| 折叠的通知卡片 | 只有字符串型 | ✅ |
+| 任务看板 | `t.action_create(suffix)` | ❌ |
+| Subagents pill | `t.subagents_pill(a, b)` | ❌ |
+| 用量 pill | 不用文案，只画 Icon | ✅ |
+
+**修法**：让值经过一次**函数参数**传递（`bindMessage(entry, locale)`）。
+参数天然是每次调用独立的 binding，与引擎的循环语义无关。
+
+`tests/portability.test.ts` 加了静态守卫（已负向验证）。
+
+### 为什么查了大半天
+
+三件事叠在一起，每一件都让人看不见真相：
+
+1. **宿主只在屏幕上留一句话。** `SurfaceErrorBoundary` 把完整错误和组件栈
+   丢进 `console.warn`，屏幕上只有 `Plugin failed: <msg>`。客户端跑在 app 里，
+   那个 console 在 app 之外读不到。
+2. **宿主在插件组件外面还套了两层自己的组件**
+   （`PluginRuntimeBoundary` → `PluginClientStateProvider`）。
+   我一度以为「插件自己的错误边界没报错 ⇒ 不是插件的问题」——
+   这个推断不成立，那两层抛异常时插件的边界压根不会挂载。
+   （本例其实是插件自己抛的，但当时无从分辨。）
+3. **不知道设备在跑哪一版。** 宿主只在 `clientBundle` 字符串变化时才重新求值，
+   重启 app 也不一定换得掉。前几轮完全分不清「没修好」还是「还没拿到修复」。
+
+### 结论：先建可观测性，再谈修
+
+破局的三件工具，都该是**第一步**而不是第五步：
+
+| 工具 | 位置 | 作用 |
+|---|---|---|
+| 版本 + 运行时指纹信标 | `index.ts` → `clientFingerprint()` | 设备自报 版本 / platform / hermes / intl |
+| 接管宿主 console | `ui/report.client.ts` → `captureHostPluginLogs()` | 把宿主 `[Plugins]` 日志（含完整调用栈）回传 daemon |
+| 卡片错误边界 | `ui/card-boundary.client.tsx` | 把异常画在卡片里，并回传；坏了也只降级不打垮界面 |
+
+```bash
+grep 'pi-kit report' ~/.paseo/daemon.log
+```
+
+⭐ **隔着设备边界猜是猜不出来的。** 这次在错误方向（Intl）上跑了四五轮，
+真正解决问题的是让设备自己把调用栈说出来 —— 拿到栈之后，定位只用了几分钟。

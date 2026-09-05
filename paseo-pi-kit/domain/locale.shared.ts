@@ -124,9 +124,53 @@ export type Translated<T> = {
 export function makeTranslator<T extends Catalog>(catalog: T, locale: Locale): Translated<T> {
   const out: Record<string, unknown> = {};
   for (const [key, entry] of Object.entries(catalog)) {
-    out[key] = typeof entry === "function"
-      ? (...args: never[]) => (entry as (...a: never[]) => Message)(...args)[locale]
-      : entry[locale];
+    // ⚠️ 必须经 bindMessage 传递，**不能在这里直接写闭包**。原因见下面。
+    out[key] = typeof entry === "function" ? bindMessage(entry, locale) : entry[locale];
   }
   return Object.freeze(out) as Translated<T>;
+}
+
+/**
+ * 把一条函数型文案绑到某个语言上。
+ *
+ * ═══════════════════════════════════════════════════════════════════
+ * ⭐ **这个函数存在的唯一理由：不要在 `for...of` 的循环体里直接闭包捕获循环变量。**
+ *
+ * 原来的写法是：
+ *
+ * ```ts
+ * for (const [key, entry] of Object.entries(catalog)) {
+ *   out[key] = typeof entry === "function"
+ *     ? (...args) => entry(...args)[locale]   // ← 闭包捕获循环变量
+ *     : entry[locale];
+ * }
+ * ```
+ *
+ * 在 V8 / JSC（web、桌面、Node）上完全正确：`for...of` 的 `const` 每轮迭代
+ * 是独立 binding，每个闭包各自捕获自己那一轮的 `entry`。
+ *
+ * **但在安卓的 Hermes 上不是。** 那里所有闭包共享同一个 binding，于是每个
+ * 函数型文案在被调用时拿到的都是**最后一轮**的 `entry` —— 而 CATALOG 最后一条
+ * 是个普通的 `{ zh, en }` 对象。结果整片界面变成：
+ *
+ * ```
+ * Plugin failed: Object is not a function
+ * ```
+ *
+ * 只用字符串型文案的卡片正常，只要用了 `t.xxx(...)` 的一律炸。
+ *
+ * 定位过程：宿主的 `SurfaceErrorBoundary` 只在屏幕上留一句话，完整调用栈在
+ * app 的 `console.warn` 里（daemon 日志看不到）。最后是靠插件自己接管
+ * `console.warn` 把宿主日志回传，才拿到 `at apply (native) → at anonymous (:84:64)`
+ * 这一行 —— 见 `ui/report.client.ts`。
+ *
+ * ⭐ **函数参数是每次调用独立的 binding，与引擎的循环语义无关。**
+ * 所以只要经过一次参数传递，这个差异就影响不到我们。
+ * ═══════════════════════════════════════════════════════════════════
+ */
+function bindMessage(
+  entry: (...args: never[]) => Message,
+  locale: Locale,
+): (...args: never[]) => string {
+  return (...args: never[]) => entry(...args)[locale];
 }

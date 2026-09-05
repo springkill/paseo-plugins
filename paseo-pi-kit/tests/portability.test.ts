@@ -154,3 +154,58 @@ test("⭐ 不用 React.xxx，一律具名导入", () => {
   }
   assert.deepEqual(offenders, [], '改成具名导入，如 import { useMemo, Component } from "react"');
 });
+
+// ── 循环变量捕获 ────────────────────────────────────────────────────
+
+test("⭐ 不在 for...of 循环体里闭包捕获循环变量", () => {
+  // ═════════════════════════════════════════════════════════════════
+  // 这条来自一个查了大半天的真实故障。
+  //
+  // `makeTranslator` 原来这么写：
+  //
+  //   for (const [key, entry] of Object.entries(catalog)) {
+  //     out[key] = typeof entry === "function"
+  //       ? (...args) => entry(...args)[locale]   // ← 闭包捕获循环变量
+  //       : entry[locale];
+  //   }
+  //
+  // V8 / JSC（web、桌面、Node）上完全正确 —— `for...of` 的 const 每轮是独立
+  // binding。**安卓的 Hermes 上不是**：所有闭包共享同一个 binding，
+  // 每个函数型文案被调用时拿到的都是最后一轮的 entry（一个普通对象），
+  // 整片界面变成 `Plugin failed: Object is not a function`。
+  //
+  // 修法：让值经过一次**函数参数**传递 —— 参数天然是每次调用独立的 binding，
+  // 与引擎的循环语义无关。
+  //
+  // 确实安全的地方（回调立即执行、不逃逸）在行尾标 `loop-capture-ok:` 说明理由。
+  // ═════════════════════════════════════════════════════════════════
+  const offenders: string[] = [];
+  for (const [name, source] of shippedFiles()) {
+    const text = stripComments(source);
+    for (const match of text.matchAll(/for\s*\(\s*(?:const|let)\s*\[([^\]]+)\]\s*of\b/g)) {
+      const names = match[1]!.split(",").map((part) => part.trim()).filter((part) => /^\w+$/.test(part));
+      if (names.length === 0) continue;
+      // 取循环体（花括号配平）
+      const open = text.indexOf("{", match.index + match[0].length);
+      if (open < 0) continue;
+      let depth = 0;
+      let close = open;
+      for (; close < text.length; close++) {
+        if (text[close] === "{") depth++;
+        else if (text[close] === "}" && --depth === 0) break;
+      }
+      const body = text.slice(open, close);
+      if (!body.includes("=>")) continue;
+      const line = text.slice(0, match.index).split("\n").length;
+      const raw = source.split("\n").slice(line - 1, line + 6).join("\n");
+      if (raw.includes("loop-capture-ok:")) continue;
+      for (const captured of names) {
+        // 箭头函数右边引用了循环变量
+        if (new RegExp(`=>[^;{]*\\b${captured}\\b`).test(body)) {
+          offenders.push(`${name}:${line}  闭包捕获了循环变量 \`${captured}\``);
+        }
+      }
+    }
+  }
+  assert.deepEqual(offenders, [], `\n${offenders.join("\n")}\n改成经函数参数传递；确实安全就标 loop-capture-ok: 并写理由`);
+});
