@@ -307,3 +307,61 @@ grep 'pi-kit report' ~/.paseo/daemon.log
 
 ⭐ **隔着设备边界猜是猜不出来的。** 这次在错误方向（Intl）上跑了四五轮，
 真正解决问题的是让设备自己把调用栈说出来 —— 拿到栈之后，定位只用了几分钟。
+
+---
+
+## 五、explorer 侧栏在手机上根本不存在
+
+安卓上「图标显示了，但侧边栏什么都没有」，Mac 正常。
+
+### 宿主怎么决定 explorer 的形态
+
+```js
+isCompact ? "overlay"                       // xs / sm 断点 —— 手机
+  : supportsDesktopPaneSplits() ? "pane"    // 桌面 web
+  : "dock"
+
+supportsDesktopPaneSplits = () => isWeb
+useIsCompactFormFactor  = () => breakpoint === "xs" || breakpoint === "sm"
+```
+
+### 插件 openPanel 撞在哪
+
+`createPluginNavigation`：
+
+```js
+function placementFor(location) {
+  if (location !== "explorer") return;                 // 默认放置
+  const paneId = useWorkspaceLayoutStore.getState()
+                   .showExplorerSidebar(`${serverId}:${workspaceId}`);
+  if (!paneId) throw new Error("Explorer is unavailable");
+  return { mode: "pane", paneId };
+}
+```
+
+而 `showExplorerSidebar` 在建不出 pane 时 `return null`。
+**手机是 overlay 形态，没有可用的 pane** → 同步抛 `"Explorer is unavailable"`
+→ 点了 pill 什么都不发生。
+
+Mac 正常纯粹因为屏幕够宽 **且** 桌面端是 web 形态。
+
+### 修法
+
+`ui/open-panel.client.ts` 的 `openPanelPreferExplorer`：先试 explorer，
+抛了就退回默认放置（主区标签页）。手机上有个能看的界面，好过点了没反应。
+
+⚠️ **`openPanel` 是同步抛出的**（`startPluginClientSide` 里
+`openPanel(t,n){ c({...}) }` 全程同步），所以 try/catch 接得住。
+
+### 规矩变了
+
+旧规矩「必须显式带 `location: "explorer"`」在窄屏上是**错的**。
+`tests/visual-tokens.test.ts` 已改成：
+
+1. 不许再直接写 `location: "explorer"`
+2. 不许直接调 `openPanel(`，一律经 helper
+3. helper 自己必须真的有兜底那次调用
+
+已负向验证。
+
+⚠️ 这个差异**本机和 web 端都测不出来** —— 只有窄屏原生端会踩到。

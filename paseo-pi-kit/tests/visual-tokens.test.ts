@@ -116,21 +116,52 @@ test("令牌本身是自洽的", () => {
 
 // ── 面板打开位置 ────────────────────────────────────────────────────
 
-test("openPanel 必须显式带 location: \"explorer\"", () => {
-  // `PluginOpenPanelOptions.location` 缺省是 "workspace" —— 那会把面板开成
-  // 主区的大标签页，而不是文件树 / git 变更树旁边那个侧边容器。
-  // 类型上它是可选的，所以漏了不会报错，只会静悄悄开错地方（踩过一次）。
+test("⭐ 打开面板一律走 openPanelPreferExplorer", () => {
+  // ═════════════════════════════════════════════════════════════════
+  // 曾经的规矩是「必须显式带 location: \"explorer\"」—— 因为缺省是 \"workspace\"，
+  // 会把面板开成主区的大标签页而不是文件树旁边那个侧边容器。
+  //
+  // 但那条规矩在**手机上是错的**。宿主的 createPluginNavigation：
+  //
+  //   if (location !== "explorer") return;              // 默认放置
+  //   const paneId = showExplorerSidebar(workspaceKey);
+  //   if (!paneId) throw new Error("Explorer is unavailable");
+  //
+  // 而 explorer 有三种形态：isCompact ? "overlay" : supportsDesktopPaneSplits()
+  // ? "pane" : "dock"，且 supportsDesktopPaneSplits() 直接 return isWeb。
+  // 窄屏原生端是 overlay，没有可用的 pane —— 于是同步抛异常，点了没反应。
+  //
+  // ⭐ 现在的规矩：走 openPanelPreferExplorer，先试 explorer，失败退回默认放置。
+  // ⚠️ 这个差异本机和 web 端都测不出来，只有窄屏原生端会踩到。
+  // ═════════════════════════════════════════════════════════════════
   const sources = [
     ...FILES,
     ["index.ts", readFileSync(join(UI, "..", "index.ts"), "utf8")] as const,
   ];
-  const offenders = sources.flatMap(([name, source]) =>
-    [...source.matchAll(/openPanel\((?:[^()]|\([^()]*\))*\)/g)]
-      .map((m) => m[0])
-      .filter((call) => !call.includes('location: "explorer"'))
-      .map((call) => `${name}: ${call.replace(/\s+/g, " ")}`),
-  );
-  assert.deepEqual(offenders, [], '补上 location: "explorer"，否则会开成主区大标签页');
+
+  // 1. 不许再直接写 location: "explorer"
+  const hardcoded = sources
+    .filter(([name]) => name !== "open-panel.client.ts")
+    .flatMap(([name, source]) =>
+      [...source.matchAll(/^(?!\s*(?:\/\/|\*)).*location:\s*"explorer"/gm)].map(
+        (m) => `${name}: ${m[0].trim()}`,
+      ),
+    );
+  assert.deepEqual(hardcoded, [], "改用 openPanelPreferExplorer —— 手机上会抛 Explorer is unavailable");
+
+  // 2. 直接调 openPanel 的地方必须是 helper 内部
+  const direct = sources
+    .filter(([name]) => name !== "open-panel.client.ts")
+    .flatMap(([name, source]) =>
+      [...source.matchAll(/(?<![\w.])(?:client\.)?openPanel\s*\(/g)]
+        .map((m) => `${name}: ${m[0]}`),
+    );
+  assert.deepEqual(direct, [], "面板开启一律经 openPanelPreferExplorer");
+
+  // 3. helper 自己必须真的带兜底
+  const helper = readFileSync(join(UI, "open-panel.client.ts"), "utf8");
+  assert.match(helper, /catch/, "helper 必须接住 explorer 不可用");
+  assert.match(helper, /open\(panelId, options\)/, "helper 必须有退回默认放置的那一次调用");
 });
 
 // ── 结构化数据不许退回 JSON 味 ──────────────────────────────────────

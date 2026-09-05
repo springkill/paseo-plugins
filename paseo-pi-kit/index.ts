@@ -38,6 +38,7 @@ import { closeProviderUsageClient, listProviderUsage } from "./server/provider-u
 import { listSubagentCalls } from "./server/subagents.server";
 import { getLatestTodo } from "./server/todo.server";
 import { VERSION, withCardBoundary } from "./ui/card-boundary.client";
+import { openPanelPreferExplorer } from "./ui/open-panel.client";
 import { captureHostPluginLogs, clientFingerprint, drain, record } from "./ui/report.client";
 import { PiNoticeTimelineCard } from "./ui/pi-notice.client";
 import { contributeSubagentPills, PiSubagentsPanel, SubagentTimelineCard } from "./ui/subagents.client";
@@ -129,8 +130,9 @@ export default function contribute(plugin: PluginContext) {
     keywords: ["pi", "todo", "tasks", "任务"],
     context: "agent",
     onSelect({ openPanel }) {
-      // 与 composer pill 保持一致：缺省是 "workspace"（主区大标签页）
-      openPanel("pi-todos", { location: "explorer" });
+      // 与 composer pill 一致：先试 explorer 侧栏，手机上开不出来就退回
+      // 默认放置。直接写 location: "explorer" 会抛 "Explorer is unavailable"。
+      openPanelPreferExplorer(openPanel, "pi-todos", {});
     },
   });
 
@@ -165,8 +167,9 @@ export default function contribute(plugin: PluginContext) {
     keywords: ["pi", "children", "workflow", "agents"],
     context: "agent",
     onSelect({ openPanel }) {
-      // 与 composer pill 保持一致：缺省是 "workspace"（主区大标签页）
-      openPanel("pi-subagents", { location: "explorer" });
+      // 与 composer pill 一致：先试 explorer 侧栏，手机上开不出来就退回
+      // 默认放置。直接写 location: "explorer" 会抛 "Explorer is unavailable"。
+      openPanelPreferExplorer(openPanel, "pi-subagents", {});
     },
   });
 
@@ -205,8 +208,9 @@ export default function contribute(plugin: PluginContext) {
     keywords: ["provider", "usage", "balance", "quota", "用量", "余额"],
     context: "agent",
     onSelect({ openPanel }) {
-      // 与 composer pill 保持一致：缺省是 "workspace"（主区大标签页）
-      openPanel("pi-usage", { location: "explorer" });
+      // 与 composer pill 一致：先试 explorer 侧栏，手机上开不出来就退回
+      // 默认放置。直接写 location: "explorer" 会抛 "Explorer is unavailable"。
+      openPanelPreferExplorer(openPanel, "pi-usage", {});
     },
   });
 

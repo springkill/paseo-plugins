@@ -16,6 +16,7 @@ import { providerUsageRpc } from "../domain/contracts.shared";
 import { translator } from "../domain/i18n.shared";
 import { localeFromTag } from "../domain/locale.shared";
 import { withCardBoundary } from "./card-boundary.client";
+import { openPanelPreferExplorer } from "./open-panel.client";
 import { detectClientLocale, useLocale } from "./locale.client";
 import { ProviderBalancesCard } from "./balances-main.client";
 import { ICON } from "./tokens.client";
@@ -116,9 +117,10 @@ export function contributeProviderUsagePills(client: PluginClientContext) {
         agentId,
         Component: withCardBoundary("pi-usage-pill", ProviderUsagePill),
         onPress() {
-          // ⭐ `location: "explorer"` 不能省 —— 缺省是 "workspace"，那会开成
-          // 主区的大标签页。带上它才落到文件树、git 变更树那个侧边容器里。
-          client.openPanel("pi-usage", { workspaceId, agentId, location: "explorer" });
+          // ⚠️ 不能直接写 location: "explorer" —— 手机上 explorer 是 overlay
+          // 形态，没有可用的 pane，宿主会抛 "Explorer is unavailable"，
+          // 点了就什么都不发生。见 ui/open-panel.client.ts。
+          openPanelPreferExplorer(client.openPanel, "pi-usage", { workspaceId, agentId });
         },
       }),
     });
