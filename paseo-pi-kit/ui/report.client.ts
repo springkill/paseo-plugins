@@ -21,6 +21,8 @@
  * 摘要，日志噪音大到没法看 —— 那是临时排查用的，问题定位完就该收掉。
  */
 
+import { Platform } from "react-native";
+
 const buffer: string[] = [];
 let seq = 0;
 
@@ -32,4 +34,30 @@ export function record(line: string): void {
 
 export function drain(): string[] {
   return buffer.splice(0, buffer.length);
+}
+
+/**
+ * 客户端的运行时指纹。
+ *
+ * ⭐ 这条是**排障的起点**，不是锦上添花。
+ *
+ * 同一个插件在 Mac 上正常、安卓上炸，查了大半天才意识到最基本的问题一直没答案：
+ * 报上来的日志到底是哪台设备发的？那台设备有没有 Intl？是不是 Hermes？
+ * 没有这行，一切都只能靠猜 —— 实测为此空转了好几轮。
+ *
+ * - `platform`  web / ios / android（原生走 react-native，web 走 react-native-web）
+ * - `hermes`    有没有 HermesInternal —— 判断引擎的标准做法
+ * - `intl`      Hermes 常常不带 Intl，而那正好是一整类 bug 的根源
+ */
+export function clientFingerprint(): string {
+  const parts: string[] = [];
+  try {
+    parts.push(`platform=${String((Platform as { OS?: unknown } | undefined)?.OS ?? "?")}`);
+  } catch {
+    parts.push("platform=throw");
+  }
+  parts.push(`hermes=${typeof (globalThis as { HermesInternal?: unknown }).HermesInternal !== "undefined"}`);
+  parts.push(`intl=${typeof (globalThis as { Intl?: unknown }).Intl}`);
+  parts.push(`numFmt=${typeof (12345).toLocaleString === "function"}`);
+  return parts.join(" ");
 }

@@ -38,7 +38,7 @@ import { closeProviderUsageClient, listProviderUsage } from "./server/provider-u
 import { listSubagentCalls } from "./server/subagents.server";
 import { getLatestTodo } from "./server/todo.server";
 import { VERSION, withCardBoundary } from "./ui/card-boundary.client";
-import { drain, record } from "./ui/report.client";
+import { clientFingerprint, drain, record } from "./ui/report.client";
 import { PiNoticeTimelineCard } from "./ui/pi-notice.client";
 import { contributeSubagentPills, PiSubagentsPanel, SubagentTimelineCard } from "./ui/subagents.client";
 import { contributeTodoPills, PiTodoPanel, TodoTimelineCard } from "./ui/todo.client";
@@ -212,13 +212,13 @@ export default function contribute(plugin: PluginContext) {
 
   // ── composer pill ────────────────────────────────────────────────
   plugin.addClientSide((client) => {
-    // ⭐ 启动信标：报一行客户端**实际在跑的 bundle 版本**。
+    // ⭐ 启动信标：报一行客户端**实际在跑的 bundle 版本 + 运行时指纹**。
     //
     // 没有它就会反复卡在同一个问题上：设备报错，而我分不清是「没修好」还是
     // 「app 还在跑旧 bundle」—— 宿主只在 clientBundle 字符串变化时才重新求值，
     // 光重启 app 不一定换得掉。实测为此空转了三轮。
     // 一行/次加载，不是噪音。
-    record(`client up v${VERSION}`);
+    record(`client up v${VERSION} ${clientFingerprint()}`);
 
     // 渲染异常从 CardBoundary 进缓冲区，这里定时送回服务端打进 daemon 日志。
     // 客户端跑在 app 里，不这么做的话它的 console 在 app 之外根本看不到。
