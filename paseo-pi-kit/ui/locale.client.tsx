@@ -7,7 +7,7 @@
 
 import { type PluginTheme, useRpc } from "@getpaseo/plugin";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import React from "react";
+import { useMemo } from "react";
 import { NativeModules, Pressable, Text, View } from "react-native";
 import { localeRpc, setLocaleRpc } from "../domain/contracts.shared";
 import { translator, type Translator } from "../domain/i18n.shared";
@@ -76,7 +76,7 @@ export interface LocaleContext {
 }
 
 export function useLocale(hostId: string): LocaleContext {
-  const clientLocale = React.useMemo(() => detectClientLocale(), []);
+  const clientLocale = useMemo(() => detectClientLocale(), []);
   const getLocale = useRpc(localeRpc);
   const query = useQuery({
     queryKey: ["pi-kit", "locale", hostId],

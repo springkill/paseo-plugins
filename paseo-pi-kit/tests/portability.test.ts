@@ -134,3 +134,23 @@ test("⭐ Icon 一律从 @getpaseo/plugin/react-native 取", () => {
   }
   assert.deepEqual(offenders, [], '改成 import { Icon } from "@getpaseo/plugin/react-native"');
 });
+
+test("⭐ 不用 React.xxx，一律具名导入", () => {
+  // esbuild 把 `React.Component` / `React.useMemo` 编成 `import_react.default.xxx`，
+  // 依赖 `__toESM` 合成出来的 `.default`。宿主在 web 和原生两端各自提供 react 模块，
+  // 两边的 interop 形状不保证一样 —— 具名导入编出来是 `import_react.Component`，
+  // 没有这层不确定性。
+  //
+  // ⚠️ 这类问题的表现是 `Element type is invalid … but got: undefined`，
+  // 从报错完全看不出跟 import 有关。
+  const offenders: string[] = [];
+  for (const [name, source] of shippedFiles()) {
+    const stripped = stripComments(source);
+    for (const match of stripped.matchAll(/\bReact\.(\w+)/g)) {
+      // 类型位置（React.ReactNode 之类）会被 tsc 擦掉，不进运行时
+      if (/^[A-Z]/.test(match[1]!) && !/^(Component|PureComponent|Fragment|StrictMode)$/.test(match[1]!)) continue;
+      offenders.push(`${name}: React.${match[1]}`);
+    }
+  }
+  assert.deepEqual(offenders, [], '改成具名导入，如 import { useMemo, Component } from "react"');
+});

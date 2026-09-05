@@ -20,7 +20,13 @@
  */
 
 import type { PluginTheme } from "@getpaseo/plugin";
-import React from "react";
+// ⚠️ 具名导入 `Component`，**不要** `React.Component`。
+// esbuild 会把 `class X extends React.Component` 编成
+// `class extends import_react.default.Component` —— 那依赖 `__toESM` interop
+// 合成出来的 `.default`。宿主在 web 和原生两端各自提供 react 模块，
+// 两边的 interop 形状不保证一样，而这是全插件唯一一处踩到它的地方。
+// 具名导入编出来是 `import_react.Component`，没有这层不确定性。
+import { Component, type ComponentType, type ReactNode } from "react";
 import { Text, View } from "react-native";
 import { record } from "./report.client";
 import { RADIUS, SPACE, text } from "./tokens.client";
@@ -37,12 +43,12 @@ import { RADIUS, SPACE, text } from "./tokens.client";
  *
  * ⚠️ 必须与 package.json 一致 —— tests/portability.test.ts 会对账。
  */
-const VERSION = "0.7.3";
+const VERSION = "0.7.4";
 
-type Props = { kind: string; theme: PluginTheme; children: React.ReactNode };
+type Props = { kind: string; theme: PluginTheme; children: ReactNode };
 type State = { message: string | null; frames: string };
 
-export class CardBoundary extends React.Component<Props, State> {
+export class CardBoundary extends Component<Props, State> {
   override state: State = { message: null, frames: "" };
 
   static getDerivedStateFromError(error: unknown): State {
@@ -60,7 +66,7 @@ export class CardBoundary extends React.Component<Props, State> {
     record(`RENDER FAILED v${VERSION} kind=${this.props.kind} msg=${message} stack=${stack}`);
   }
 
-  override render(): React.ReactNode {
+  override render(): ReactNode {
     const { message, frames } = this.state;
     if (message === null) return this.props.children;
     const { theme, kind } = this.props;
@@ -95,12 +101,20 @@ export class CardBoundary extends React.Component<Props, State> {
  */
 export function withCardBoundary<P extends { theme: PluginTheme }>(
   kind: string,
-  Component: React.ComponentType<P>,
-): React.ComponentType<P> {
+  Wrapped: ComponentType<P>,
+): ComponentType<P> {
+  // ⭐ 边界是**排障用的**，它自己绝不能成为打垮界面的那个东西。
+  //
+  // 踩过：`<CardBoundary>` 一旦是 undefined，宿主报的是
+  // `Element type is invalid: … but got: undefined` —— 一句话都看不出是边界的锅，
+  // 而且因为边界没挂上，我原本用来上报细节的通道也一起哑了。
+  // 这个守卫把「边界坏了」降级成「没有边界」，而不是「界面没了」。
+  if (typeof CardBoundary !== "function") return Wrapped;
+
   function BoundedCard(props: P) {
     return (
       <CardBoundary kind={kind} theme={props.theme}>
-        <Component {...props} />
+        <Wrapped {...props} />
       </CardBoundary>
     );
   }
