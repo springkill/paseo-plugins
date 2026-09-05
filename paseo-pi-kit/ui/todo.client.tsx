@@ -22,6 +22,7 @@ import { ActivityIndicator, Text, View } from "react-native";
 import { latestTodoRpc, type TodoBoard, type TodoTask } from "../domain/contracts.shared";
 import { translator, type Translator } from "../domain/i18n.shared";
 import { localeFromTag } from "../domain/locale.shared";
+import { withCardBoundary } from "./card-boundary.client";
 import { detectClientLocale, LanguagePicker, useLocale } from "./locale.client";
 import {
   CardHeader,
@@ -267,7 +268,7 @@ export function contributeTodoPills(client: PluginClientContext) {
         title: t.nav_open_todos,
         workspaceId,
         agentId,
-        Component: TodoStatusPill,
+        Component: withCardBoundary("pi-todos-pill", TodoStatusPill),
         onPress() {
           // ⭐ `location: "explorer"` 不能省 —— 缺省是 "workspace"，那会开成
           // 主区的大标签页。带上它才落到文件树、git 变更树那个侧边容器里。

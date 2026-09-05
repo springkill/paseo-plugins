@@ -25,6 +25,20 @@ import { Text, View } from "react-native";
 import { record } from "./report.client";
 import { RADIUS, SPACE, text } from "./tokens.client";
 
+/**
+ * ⭐ 版本号要**画进错误消息里**。
+ *
+ * 踩过：修完一版之后用户回报「还是失败」，但截图上
+ * `Plugin failed: Object is not a function` 与修复前**一字不差** ——
+ * 没法判断是修没修好，还是 app 还在跑旧 bundle
+ * （宿主只在 clientBundle 字符串变了才重新求值，app 不重连就不换）。
+ *
+ * 带上版本号，一张截图就能分辨。
+ *
+ * ⚠️ 必须与 package.json 一致 —— tests/portability.test.ts 会对账。
+ */
+const VERSION = "0.7.2";
+
 type Props = { kind: string; theme: PluginTheme; children: React.ReactNode };
 type State = { message: string | null; frames: string };
 
@@ -43,7 +57,7 @@ export class CardBoundary extends React.Component<Props, State> {
   override componentDidCatch(error: unknown): void {
     const message = error instanceof Error ? error.message : String(error);
     const stack = error instanceof Error ? (error.stack ?? "").split("\n").slice(1, 6).join(" | ") : "";
-    record(`RENDER FAILED kind=${this.props.kind} msg=${message} stack=${stack}`);
+    record(`RENDER FAILED v${VERSION} kind=${this.props.kind} msg=${message} stack=${stack}`);
   }
 
   override render(): React.ReactNode {
@@ -62,7 +76,7 @@ export class CardBoundary extends React.Component<Props, State> {
         }}
       >
         <Text selectable style={text(theme, "rowTitle", { tone: "danger" })}>
-          pi-kit {kind}: {message}
+          pi-kit {VERSION} · {kind}: {message}
         </Text>
         {frames ? (
           <Text selectable style={text(theme, "chip", { mono: true, muted: true })}>{frames}</Text>
@@ -72,7 +86,13 @@ export class CardBoundary extends React.Component<Props, State> {
   }
 }
 
-/** 把一个时间线卡片组件裹进边界。注册处用它替换裸组件。 */
+/**
+ * 把任意插件界面裹进边界 —— 时间线卡片、面板、composer pill 都要。
+ *
+ * ⚠️ 别只裹时间线卡片。宿主的 `SurfaceErrorBoundary` 同样包着面板和 pill，
+ * 它们炸了也只会显示一行 `Plugin failed: <msg>`，细节同样进了 app 里的
+ * `console.warn` —— 也就是同样查不了。
+ */
 export function withCardBoundary<P extends { theme: PluginTheme }>(
   kind: string,
   Component: React.ComponentType<P>,

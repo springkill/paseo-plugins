@@ -12,6 +12,7 @@ import { View } from "react-native";
 import { providerUsageRpc } from "../domain/contracts.shared";
 import { translator } from "../domain/i18n.shared";
 import { localeFromTag } from "../domain/locale.shared";
+import { withCardBoundary } from "./card-boundary.client";
 import { detectClientLocale, useLocale } from "./locale.client";
 import { ProviderBalancesCard } from "./balances-main.client";
 import { ICON } from "./tokens.client";
@@ -110,7 +111,7 @@ export function contributeProviderUsagePills(client: PluginClientContext) {
         title: t.usage_nav_open_usage,
         workspaceId,
         agentId,
-        Component: ProviderUsagePill,
+        Component: withCardBoundary("pi-usage-pill", ProviderUsagePill),
         onPress() {
           // ⭐ `location: "explorer"` 不能省 —— 缺省是 "workspace"，那会开成
           // 主区的大标签页。带上它才落到文件树、git 变更树那个侧边容器里。

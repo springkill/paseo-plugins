@@ -120,7 +120,7 @@ export default function contribute(plugin: PluginContext) {
     icon: "ListTodo",
     context: "agent",
     locations: ["workspace", "explorer"],
-    Component: PiTodoPanel,
+    Component: withCardBoundary("pi-todos", PiTodoPanel),
   });
   plugin.addCommandCenterItem({
     id: "open-pi-todos",
@@ -156,7 +156,7 @@ export default function contribute(plugin: PluginContext) {
     icon: "Network",
     context: "agent",
     locations: ["workspace", "explorer"],
-    Component: PiSubagentsPanel,
+    Component: withCardBoundary("pi-subagents", PiSubagentsPanel),
   });
   plugin.addCommandCenterItem({
     id: "open-pi-subagents",
@@ -196,7 +196,7 @@ export default function contribute(plugin: PluginContext) {
     icon: "Gauge",
     context: "agent",
     locations: ["workspace", "explorer"],
-    Component: ProviderUsagePanel,
+    Component: withCardBoundary("pi-usage", ProviderUsagePanel),
   });
   plugin.addCommandCenterItem({
     id: "open-pi-usage",

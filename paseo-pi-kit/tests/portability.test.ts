@@ -93,3 +93,29 @@ test("格式化只有一处实现", () => {
     .map(([name]) => name);
   assert.deepEqual(others, [], "从 domain/format.shared.ts 引，别各写各的");
 });
+
+// ── 版本对账 ────────────────────────────────────────────────────────
+
+test("⭐ 错误边界里的版本号与 package.json 一致", () => {
+  // 边界把版本号画进错误消息，好让一张截图就能分辨「修没修好」和
+  // 「app 还在跑旧 bundle」—— 对不上的话这个作用就没了，而且会误导。
+  const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")) as { version: string };
+  const source = readFileSync(join(ROOT, "ui", "card-boundary.client.tsx"), "utf8");
+  const declared = source.match(/^const VERSION = "([^"]+)";$/m)?.[1];
+  assert.equal(declared, pkg.version, "改版本号时 ui/card-boundary.client.tsx 也要跟着改");
+});
+
+test("⭐ 所有插件界面都裹了错误边界", () => {
+  // 宿主的 SurfaceErrorBoundary 同样包着面板和 pill，但它只显示一行
+  // `Plugin failed: <msg>`，细节进了 app 里的 console.warn —— 等于查不了。
+  const sources = [
+    ["index.ts", readFileSync(join(ROOT, "index.ts"), "utf8")] as const,
+    ...readdirSync(join(ROOT, "ui"))
+      .filter((name) => name.endsWith(".client.tsx"))
+      .map((name) => [`ui/${name}`, readFileSync(join(ROOT, "ui", name), "utf8")] as const),
+  ];
+  const offenders = sources.flatMap(([name, source]) =>
+    [...source.matchAll(/^\s*Component: (\w+),$/gm)].map((m) => `${name}: Component: ${m[1]}`),
+  );
+  assert.deepEqual(offenders, [], "改成 Component: withCardBoundary(\"<id>\", X)");
+});
