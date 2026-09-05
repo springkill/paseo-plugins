@@ -1,11 +1,14 @@
 import {
-  Icon,
   type PluginClientContext,
   type PluginAgentPanelProps,
   type PluginComposerPillProps,
   useAgent,
   useRpc,
 } from "@getpaseo/plugin";
+// ⚠️ Icon 从 `@getpaseo/plugin/react-native` 取，不从 `@getpaseo/plugin`。
+// 两处宿主都注入了，但**npm 包本身只导出后者** —— 前者是宿主运行时额外塞进去的。
+// 插件里其他文件一律走 /react-native，这里曾经是唯一的例外。
+import { Icon } from "@getpaseo/plugin/react-native";
 import { useQuery } from "@tanstack/react-query";
 import React, { useEffect, useState } from "react";
 import { View } from "react-native";

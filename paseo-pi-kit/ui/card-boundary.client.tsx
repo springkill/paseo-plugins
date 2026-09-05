@@ -37,7 +37,7 @@ import { RADIUS, SPACE, text } from "./tokens.client";
  *
  * ⚠️ 必须与 package.json 一致 —— tests/portability.test.ts 会对账。
  */
-const VERSION = "0.7.2";
+const VERSION = "0.7.3";
 
 type Props = { kind: string; theme: PluginTheme; children: React.ReactNode };
 type State = { message: string | null; frames: string };

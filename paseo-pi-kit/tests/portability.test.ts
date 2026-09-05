@@ -119,3 +119,18 @@ test("⭐ 所有插件界面都裹了错误边界", () => {
   );
   assert.deepEqual(offenders, [], "改成 Component: withCardBoundary(\"<id>\", X)");
 });
+
+test("⭐ Icon 一律从 @getpaseo/plugin/react-native 取", () => {
+  // 宿主给 `@getpaseo/plugin` 和 `@getpaseo/plugin/react-native` 都注入了 Icon，
+  // 但**npm 包本身只导出后者** —— 前者纯靠宿主运行时补。少一处不确定性总是好的，
+  // 而且这类问题炸出来是 `Element type is invalid … but got: undefined`，
+  // 从报错完全看不出是导入写错了。
+  const offenders: string[] = [];
+  for (const [name, source] of shippedFiles()) {
+    const imports = source.matchAll(/import\s*\{([^}]*)\}\s*from\s*"@getpaseo\/plugin"/g);
+    for (const match of imports) {
+      if (/\bIcon\b/.test(match[1]!.replace(/\btype\s+\w+/g, ""))) offenders.push(name);
+    }
+  }
+  assert.deepEqual(offenders, [], '改成 import { Icon } from "@getpaseo/plugin/react-native"');
+});

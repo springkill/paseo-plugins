@@ -88,6 +88,13 @@ function walk(node: unknown, trail: string[], depth = 0): void {
   const element = node as { type?: unknown; props?: Record<string, unknown> };
   const type = element.type;
   const props = element.props ?? {};
+  // ⭐ React 对 undefined / null 的元素类型会抛
+  // `Element type is invalid: expected a string … but got: undefined`
+  // ——导入写错、导出名对不上、循环依赖都长这样。
+  // ⚠️ 第一版这里是**静默跳过**的，于是这一整类错误一条都测不出来。
+  if (type === undefined || type === null) {
+    throw new Error(`Element type is invalid: got ${String(type)}（导入拿到了 undefined）`);
+  }
   if (typeof type === "function") {
     trail.push((type as { name?: string }).name || "anonymous");
     const proto = (type as { prototype?: { isReactComponent?: unknown } }).prototype;
@@ -127,15 +134,28 @@ async function loadBundle() {
 
   const resolve = (id: string): unknown => {
     if (id === "react-native") return reactNative;
-    if (id === "@getpaseo/plugin/react-native") return { Icon: "Icon", Modal: "Modal", useToast: () => () => {} };
+    if (id === "@getpaseo/plugin/react-native") {
+      // 宿主给的是 pluginReactNativeRuntime = { Icon, Modal, useToast }；
+      // Modal 带 .Content 子组件（见 paseo-plugin.d.ts 的 ModalComponent）
+      const Modal = Object.assign((props: { children?: unknown }) => props?.children ?? null, {
+        Content: (props: { children?: unknown }) => props?.children ?? null,
+      });
+      return { Icon: "Icon", Modal, useToast: () => () => {} };
+    }
     if (id === "@tanstack/react-query") return {
       useQuery: () => ({ data: undefined, error: null, isLoading: false, isFetching: false, refetch: async () => {} }),
       useMutation: () => ({ mutate: () => {}, isPending: false }),
       useQueryClient: () => ({ setQueryData: () => {}, invalidateQueries: async () => {} }),
     };
     if (id === "@getpaseo/plugin") {
+      // ⭐ 必须照抄**宿主**那张表，不是 npm 包的导出。
+      // 宿主 web-ui 里是：
+      //   { defineAttachmentSource, defineRpc, Icon, usePaseo, useAgent, useWorkspace, useRpc }
+      // ⚠️ `Icon` 只在宿主注入里有，npm 包本身不导出它 —— 照 npm 包桩的话，
+      // 每个从这里取 Icon 的界面都会误报 `Element type is invalid`。
       return {
         ...(require_(id) as Record<string, unknown>),
+        Icon: "Icon",
         useRpc: () => async () => ({}), useAgent: () => undefined,
         useWorkspace: () => undefined, usePaseo: () => ({}),
       };
@@ -145,11 +165,37 @@ async function loadBundle() {
 
   const transformers: Array<{ id: string; transform: (input: unknown) => { items?: Array<{ kind: string }> } | undefined }> = [];
   const renderers = new Map<string, { Component: unknown }>();
+  // ⭐ 面板和 composer pill 也要收 —— 它们同样会被宿主渲染，同样会
+  // 「Plugin failed」。只验时间线卡片是不够的（实测漏过一次）。
+  const surfaces: Array<{ id: string; Component: unknown }> = [];
+  const cleanups: Array<() => void> = [];
   const plugin = {
     handle: () => {},
     addTimelineTransformer: (c: never) => transformers.push(c),
     addTimelineRenderer: (c: { kind: string; Component: unknown }) => renderers.set(c.kind, c),
-    addWorkspacePanel: () => {}, addCommandCenterItem: () => {}, addClientSide: () => {},
+    addWorkspacePanel: (c: { id: string; Component: unknown }) => surfaces.push({ id: `panel:${c.id}`, Component: c.Component }),
+    addCommandCenterItem: () => {},
+    addClientSide: (fn: (client: unknown) => (() => void) | undefined) => {
+      const client = {
+        rpc: async () => ({}),
+        openPanel: () => {},
+        addComposerPill: (c: { id: string; Component: unknown }) => {
+          surfaces.push({ id: `pill:${c.id}`, Component: c.Component });
+          return () => {};
+        },
+        paseo: {
+          agents: {
+            subscribe: (cb: (u: unknown) => void) => {
+              cb({ kind: "upsert", agent: { id: "a1", workspaceId: "w1", provider: "pi" } });
+              return () => {};
+            },
+            list: async () => ({ entries: [{ agent: { id: "a1", workspaceId: "w1", provider: "pi" } }] }),
+          },
+        },
+      };
+      const cleanup = fn(client);
+      if (cleanup) cleanups.push(cleanup);
+    },
     addSurface: () => {}, addSidebarItem: () => {}, addAttachmentSource: () => {}, addTheme: () => {},
   };
   // eslint-disable-next-line no-eval -- 就是要按宿主的方式执行它
@@ -159,12 +205,12 @@ async function loadBundle() {
     : (factory as Record<string, unknown>);
   const contribute = (exports.default ?? exports) as (p: typeof plugin) => unknown;
   contribute(plugin);
-  return { transformers, renderers };
+  return { transformers, renderers, surfaces, cleanups };
 }
 
 /** 把所有样本过一遍 transformer + renderer，返回失败清单。 */
 async function renderAll(): Promise<{ ok: number; failures: string[] }> {
-  const { transformers, renderers } = await loadBundle();
+  const { transformers, renderers, surfaces, cleanups } = await loadBundle();
   const failures: string[] = [];
   let ok = 0;
   for (const fixture of NOTICE_FIXTURES) {
@@ -192,6 +238,20 @@ async function renderAll(): Promise<{ ok: number; failures: string[] }> {
       }
     }
   }
+  // ⭐ 面板与 composer pill：注册时 Component 是函数不代表渲染得出来。
+  // 实测踩过 `Element type is invalid … but got: undefined` —— 那是渲染期才炸的。
+  for (const surface of surfaces) {
+    const trail: string[] = [];
+    try {
+      walk(React.createElement(surface.Component as never, {
+        theme: THEME, host: { id: "pi-kit" }, layout: { compact: false }, agentId: "a1", workspaceId: "w1",
+      } as never), trail);
+      ok++;
+    } catch (error) {
+      failures.push(`${surface.id}: ${error instanceof Error ? error.message : String(error)}\n    路径 ${trail.join(" › ")}`);
+    }
+  }
+  for (const cleanup of cleanups) cleanup();
   return { ok, failures };
 }
 
@@ -200,7 +260,8 @@ const skip = COMPILER ? false : "本机没有全局 @getpaseo/cli";
 test("⭐ 所有卡片都渲染得出来", { skip }, async () => {
   const { ok, failures } = await renderAll();
   assert.deepEqual(failures, [], `\n${failures.join("\n")}\n`);
-  assert.ok(ok >= NOTICE_FIXTURES.length, `只渲染了 ${ok} 张卡片，样本有 ${NOTICE_FIXTURES.length} 条`);
+  // 9 条样本 + 3 个面板 + 3 个 pill
+  assert.ok(ok >= NOTICE_FIXTURES.length + 6, `只渲染了 ${ok} 个界面`);
 });
 
 test("⭐ 在没有 Intl 的运行时上也渲染得出来（安卓 Hermes）", { skip }, async () => {
