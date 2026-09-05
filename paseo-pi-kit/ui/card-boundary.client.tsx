@@ -32,7 +32,7 @@ import { record } from "./report.client";
 import { RADIUS, SPACE, text } from "./tokens.client";
 
 /**
- * ⭐ 版本号要**画进错误消息里**。
+ * ⭐ 版本号要**画进错误消息里**，也要在 clientSide 启动时报一行回 daemon 日志。
  *
  * 踩过：修完一版之后用户回报「还是失败」，但截图上
  * `Plugin failed: Object is not a function` 与修复前**一字不差** ——
@@ -43,7 +43,7 @@ import { RADIUS, SPACE, text } from "./tokens.client";
  *
  * ⚠️ 必须与 package.json 一致 —— tests/portability.test.ts 会对账。
  */
-const VERSION = "0.7.4";
+export const VERSION = "0.7.5";
 
 type Props = { kind: string; theme: PluginTheme; children: ReactNode };
 type State = { message: string | null; frames: string };

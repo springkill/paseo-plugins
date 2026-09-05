@@ -101,7 +101,7 @@ test("⭐ 错误边界里的版本号与 package.json 一致", () => {
   // 「app 还在跑旧 bundle」—— 对不上的话这个作用就没了，而且会误导。
   const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")) as { version: string };
   const source = readFileSync(join(ROOT, "ui", "card-boundary.client.tsx"), "utf8");
-  const declared = source.match(/^const VERSION = "([^"]+)";$/m)?.[1];
+  const declared = source.match(/^export const VERSION = "([^"]+)";$/m)?.[1];
   assert.equal(declared, pkg.version, "改版本号时 ui/card-boundary.client.tsx 也要跟着改");
 });
 
