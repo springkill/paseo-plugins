@@ -16,6 +16,7 @@ import type { output as ZodOutput } from "zod";
 import React, { useState } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
 import { providerUsageRpc } from "../domain/contracts.shared";
+import { formatDateTime, formatNumber } from "../domain/format.shared";
 import type { Translator } from "../domain/i18n.shared";
 import { LanguagePicker, useLocale } from "./locale.client";
 import {
@@ -38,18 +39,15 @@ import {
 const PASEO_USAGE_STALE_TIME_MS = 300_000;
 type Provider = ZodOutput<typeof providerUsageRpc.output>["providers"][number];
 
-function formatReset(value: string | null | undefined): string {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
-}
+// ⚠️ 时间与数字都走 domain/format.shared.ts —— 安卓的 Hermes 没有 Intl，
+// `toLocaleString` 在那边会把整张卡片打成 "Plugin failed"。
+const formatReset = formatDateTime;
 
 function formatBalance(value: number | null | undefined, unit: string): string {
   if (value === null || value === undefined) return "—";
   if (unit === "usd") return `$${value.toFixed(2)}`;
-  if (unit === "tokens") return `${value.toLocaleString()} tokens`;
-  return `${value.toLocaleString()} ${unit}`;
+  if (unit === "tokens") return `${formatNumber(value)} tokens`;
+  return `${formatNumber(value)} ${unit}`;
 }
 
 function ProviderCard({ provider, preferred, theme, t }: {
@@ -140,7 +138,9 @@ export function ProviderBalancesCard({ theme, host, preferredProviderId }: Plugi
     .sort((left, right) => {
       if (left.providerId === preferredProviderId) return -1;
       if (right.providerId === preferredProviderId) return 1;
-      return left.displayName.localeCompare(right.displayName);
+      // ⚠️ 不用 localeCompare —— 见 tests/portability.test.ts。provider 名是
+      // ASCII 标识符，普通比较就够，还免了对 Intl 排序规则的依赖。
+      return left.displayName < right.displayName ? -1 : left.displayName > right.displayName ? 1 : 0;
     });
   const unavailable = providers.filter((provider) => provider.status === "unavailable");
 

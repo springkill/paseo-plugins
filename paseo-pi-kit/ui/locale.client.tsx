@@ -61,7 +61,7 @@ export function detectClientLocale(): string | undefined {
 
   // ③ 兜底
   try {
-    return new Intl.DateTimeFormat().resolvedOptions().locale;
+    return new Intl.DateTimeFormat().resolvedOptions().locale; // hermes-ok: 整段在 try/catch 里，Hermes 没有 Intl 时抛出后返回 undefined，调用方继续往下找
   } catch {
     return undefined;
   }

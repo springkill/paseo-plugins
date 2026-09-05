@@ -69,7 +69,8 @@ export async function setLocale(input: ZodOutput<typeof setLocaleRpc.input>) {
 
 
 /** ⛔ 临时诊断：把客户端探针的记录打进 daemon 日志。定位完删掉。 */
-export function reportDiag(input: { lines: string[] }): { ok: boolean } {
-  for (const line of input.lines) console.log(`[pi-kit diag] ${line}`);
+/** 客户端报上来的渲染异常 → daemon 日志。`grep 'pi-kit report' ~/.paseo/daemon.log` */
+export function reportClientLines(input: { lines: string[] }): { ok: boolean } {
+  for (const line of input.lines) console.warn(`[pi-kit report] ${line}`);
   return { ok: true };
 }

@@ -4,9 +4,14 @@ import { LOCALES } from "./locale.shared";
 
 export const LocaleSchema = z.enum(LOCALES);
 
-/** ⛔ 临时诊断通道，定位完删掉。见 ui/diag.client.ts。 */
-export const diagRpc = defineRpc({
-  name: "pi-kit.diag",
+/**
+ * 客户端渲染异常回传。见 `ui/report.client.ts` 与 `ui/card-boundary.client.tsx`。
+ *
+ * ⚠️ 只走异常，不走正常流量 —— 客户端在 app 里，console 在外面看不到，
+ * 但这不是把它当日志管道用的理由。
+ */
+export const reportRpc = defineRpc({
+  name: "pi-kit.report",
   input: z.object({ lines: z.array(z.string().max(400)).max(80) }),
   output: z.object({ ok: z.boolean() }),
 });

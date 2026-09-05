@@ -22,7 +22,7 @@ import {
   localeRpc,
   PiNoticeSchema,
   providerUsageRpc,
-  diagRpc,
+  reportRpc,
   setLocaleRpc,
   SubagentCallSchema,
   subagentCallsRpc,
@@ -33,11 +33,12 @@ import { resolveLocale } from "./domain/locale.shared";
 import { parsePiNoticeTimelineItem } from "./domain/pi-notice-parser.shared";
 import { parseSubagentTimelineItem } from "./domain/subagent-parser.shared";
 import { parseTodoTimelineItem } from "./domain/todo-parser.shared";
-import { getLocale, reportDiag, setLocale } from "./server/locale.server";
+import { getLocale, reportClientLines, setLocale } from "./server/locale.server";
 import { closeProviderUsageClient, listProviderUsage } from "./server/provider-usage.server";
 import { listSubagentCalls } from "./server/subagents.server";
 import { getLatestTodo } from "./server/todo.server";
-import { describeData, describeItem, drain, record } from "./ui/diag.client";
+import { withCardBoundary } from "./ui/card-boundary.client";
+import { drain, record } from "./ui/report.client";
 import { PiNoticeTimelineCard } from "./ui/pi-notice.client";
 import { contributeSubagentPills, PiSubagentsPanel, SubagentTimelineCard } from "./ui/subagents.client";
 import { contributeTodoPills, PiTodoPanel, TodoTimelineCard } from "./ui/todo.client";
@@ -81,7 +82,7 @@ export default function contribute(plugin: PluginContext) {
   plugin.handle(providerUsageRpc, listProviderUsage);
   plugin.handle(localeRpc, getLocale);
   plugin.handle(setLocaleRpc, setLocale);
-  plugin.handle(diagRpc, reportDiag);
+  plugin.handle(reportRpc, reportClientLines);
 
   // ── 任务列表 ─────────────────────────────────────────────────────
   // Pi 的 todo 工具调用
@@ -108,7 +109,7 @@ export default function contribute(plugin: PluginContext) {
     kind: "pi-todo-board",
     version: 1,
     schema: TodoBoardSchema,
-    Component: TodoTimelineCard,
+    Component: withCardBoundary("pi-todo-board", TodoTimelineCard),
   });
   // ⭐ 三块功能的面板都注册 ["workspace","explorer"] —— explorer 就是文件树、
   // git 变更树所在的那个容器（宿主 panel manifest 里它们是 hosts:["explorer"]），
@@ -147,7 +148,7 @@ export default function contribute(plugin: PluginContext) {
     kind: "pi-subagent-card",
     version: 1,
     schema: SubagentCallSchema,
-    Component: SubagentTimelineCard,
+    Component: withCardBoundary("pi-subagent-card", SubagentTimelineCard),
   });
   plugin.addWorkspacePanel({
     id: "pi-subagents",
@@ -178,20 +179,15 @@ export default function contribute(plugin: PluginContext) {
     query: { itemType: "assistant_message" },
     transform({ item }) {
       const notice = parsePiNoticeTimelineItem(item);
-      if (!notice) {
-        record(`notice ${describeItem(item)} matched=false`);
-        return;
-      }
-      const data = timelineData(notice);
-      record(`notice matched textLen=${(item as { text?: string }).text?.length} ${describeData(data)}`);
-      return { items: [{ type: "plugin", kind: "pi-notice", version: 1, data }] };
+      if (!notice) return;
+      return { items: [{ type: "plugin", kind: "pi-notice", version: 1, data: timelineData(notice) }] };
     },
   });
   plugin.addTimelineRenderer({
     kind: "pi-notice",
     version: 1,
     schema: PiNoticeSchema,
-    Component: PiNoticeTimelineCard,
+    Component: withCardBoundary("pi-notice", PiNoticeTimelineCard),
   });
 
   plugin.addWorkspacePanel({
@@ -216,11 +212,11 @@ export default function contribute(plugin: PluginContext) {
 
   // ── composer pill ────────────────────────────────────────────────
   plugin.addClientSide((client) => {
-    // ⛔ 临时诊断：定时把探针记录送回服务端
-    record("clientSide 启动");
+    // 渲染异常从 CardBoundary 进缓冲区，这里定时送回服务端打进 daemon 日志。
+    // 客户端跑在 app 里，不这么做的话它的 console 在 app 之外根本看不到。
     const timer = setInterval(() => {
       const lines = drain();
-      if (lines.length) void client.rpc(diagRpc, { lines }).catch(() => {});
+      if (lines.length) void client.rpc(reportRpc, { lines }).catch(() => {});
     }, 3000);
     const cleanups = [
       contributeTodoPills(client),

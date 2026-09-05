@@ -32,6 +32,8 @@
  * 界面自己的文案（「空字段」「展开」）才走 i18n，在渲染层。
  */
 
+import { formatNumber } from "./format.shared";
+
 export type ViewTone = "default" | "ok" | "warning" | "danger";
 
 /** 一个值该怎么画。判定逻辑集中在 classify()。 */
@@ -210,7 +212,7 @@ function classifyNumber(key: string, value: number): ViewValue {
   if (/(ratio|progress)$/i.test(key) && value >= 0 && value <= 1) {
     return { kind: "percent", percent: value * 100, text: `${Math.round(value * 100)}%` };
   }
-  return { kind: "number", text: value.toLocaleString() };
+  return { kind: "number", text: formatNumber(value) };
 }
 
 /** 全是短标量 → 一排角标；否则退回逐条画。 */

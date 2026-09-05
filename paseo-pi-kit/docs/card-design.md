@@ -158,3 +158,62 @@ ui/structured.client.tsx           画视图模型（无判定逻辑）
 以及**结构化渲染里不许再出现花括号 / `JSON.stringify`**。
 
 这些都是**静默失效**的东西 —— 漏了不报错，只是看起来不对。靠肉眼守不住。
+
+---
+
+## 三、两个运行时：web 有 Intl，安卓没有
+
+### 代价
+
+0.7.0 在 `classifyNumber` 里写了一句 `value.toLocaleString()`。结果：
+
+| 端 | 运行时 | 结果 |
+|---|---|---|
+| web / 桌面 | 浏览器 + react-native-web | 正常 |
+| 安卓 app | **Hermes（不带 Intl 构建）** | 整条时间线 `Plugin failed: Object is not a function` |
+
+typecheck 绿、69 条测试全绿、本机把 67 条真实通知全渲染一遍零失败 ——
+因为 Node 有完整 Intl。**本机怎么测都测不出来。**
+
+更难受的是取证：宿主的 `SurfaceErrorBoundary` 只渲染一行
+`Plugin failed: <message>`，详细信息进了 app 里的 `console.warn`，
+而 daemon 日志只有服务端那半边。隔着设备边界完全无从下手。
+
+### 规矩
+
+⭐ **客户端代码里不许出现 `toLocaleString` / `Intl` / `localeCompare`。**
+
+数字和时间一律走 `domain/format.shared.ts`（`formatNumber` / `formatDateTime`）。
+副作用是好的：**输出与语言环境无关**，同一份数据在谁的机器上都长一样，
+用户截图对得上。
+
+确实需要用的地方（语言探测的兜底）在行尾标 `hermes-ok:` 并写清理由。
+
+### 三道防线
+
+| | 在哪 | 覆盖 | CI |
+|---|---|---|---|
+| 静态禁令 | `tests/portability.test.ts` | 已知的 Intl 家族 API | ✅ 跑 |
+| 真渲染 | `tests/render.test.ts` | 组件树能不能跑通，**含裁剪运行时** | ⏭️ 跳过（需全局 CLI） |
+| 卡片边界 | `ui/card-boundary.client.tsx` | 线上兜底：把异常画在卡片里 + 回传 daemon 日志 | — |
+
+`render.test.ts` 有两个关键细节，做错就什么都验不到：
+
+1. `react-native` 的图元要桩成**字符串宿主组件**，不能桩成返回 `null` 的函数 ——
+   后者会让遍历在第一个 `<View>` 就停住。
+2. 必须跑一遍 **Hermes 裁剪模式**（把 `Intl` 和 `toLocaleString` 换成抛异常的桩）。
+   正常模式下这个 bug 是测不出来的 —— 已负向验证：放回 `toLocaleString`，
+   正常模式仍然全绿，裁剪模式复现出与设备上**一模一样**的
+   `Object is not a function`，路径直指 `CompletionBlock`。
+
+它依赖全局装的 `@getpaseo/cli` 编译器，CI 上跳过 —— 所以真正在 CI 里拦回归的
+是那条纯静态的 `portability.test.ts`。
+
+### 线上取证
+
+卡片渲染异常会被 `CardBoundary` 接住，**直接画在卡片位置上**（截个图就够定位），
+同时回传 daemon 日志：
+
+```bash
+grep 'pi-kit report' ~/.paseo/daemon.log
+```

@@ -28,6 +28,7 @@ import {
   type ViewNode,
   type ViewValue,
 } from "../domain/structured-view.shared";
+import { formatDateTime } from "../domain/format.shared";
 import type { Translator } from "../domain/i18n.shared";
 import {
   BoolMark,
@@ -91,10 +92,8 @@ function PathText({ dir, base, theme }: { dir: string; base: string; theme: Plug
 }
 
 function formatTime(iso: string): string {
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime())
-    ? iso
-    : date.toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  // ⚠️ 走 domain/format.shared.ts，不用 toLocaleString —— 安卓的 Hermes 没有 Intl
+  return formatDateTime(iso) || iso;
 }
 
 /** 这个值适合摆在标签右边（短），还是得另起一段（长 / 有结构）。 */
