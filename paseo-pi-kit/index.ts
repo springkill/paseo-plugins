@@ -38,7 +38,7 @@ import { closeProviderUsageClient, listProviderUsage } from "./server/provider-u
 import { listSubagentCalls } from "./server/subagents.server";
 import { getLatestTodo } from "./server/todo.server";
 import { VERSION, withCardBoundary } from "./ui/card-boundary.client";
-import { clientFingerprint, drain, record } from "./ui/report.client";
+import { captureHostPluginLogs, clientFingerprint, drain, record } from "./ui/report.client";
 import { PiNoticeTimelineCard } from "./ui/pi-notice.client";
 import { contributeSubagentPills, PiSubagentsPanel, SubagentTimelineCard } from "./ui/subagents.client";
 import { contributeTodoPills, PiTodoPanel, TodoTimelineCard } from "./ui/todo.client";
@@ -220,6 +220,13 @@ export default function contribute(plugin: PluginContext) {
     // 一行/次加载，不是噪音。
     record(`client up v${VERSION} ${clientFingerprint()}`);
 
+    // ⭐ 接管宿主自己打的 `[Plugins] …` 日志。
+    // 宿主的错误边界把完整错误和组件栈丢进 console.warn，而屏幕上只留一句
+    // `Plugin failed: <msg>` —— 客户端在 app 里，那个 console 读不到。
+    // 而且宿主在插件组件外面还套了两层，那两层抛异常时插件自己的边界
+    // 压根不会挂载，上报通道也就哑了。见 ui/report.client.ts。
+    const releaseConsole = captureHostPluginLogs();
+
     // 渲染异常从 CardBoundary 进缓冲区，这里定时送回服务端打进 daemon 日志。
     // 客户端跑在 app 里，不这么做的话它的 console 在 app 之外根本看不到。
     const timer = setInterval(() => {
@@ -233,6 +240,7 @@ export default function contribute(plugin: PluginContext) {
     ];
     return () => {
       clearInterval(timer);
+      releaseConsole();
       for (const cleanup of cleanups.reverse()) cleanup();
     };
   });
