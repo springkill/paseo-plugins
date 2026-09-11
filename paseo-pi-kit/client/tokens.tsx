@@ -26,7 +26,7 @@
 
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
-import React from "react";
+import React, { createContext, useContext } from "react";
 import { Pressable, ScrollView, Text, View, type TextStyle } from "react-native";
 
 /** 字号只有六档 —— 档位越少越不容易走样。 */
@@ -96,6 +96,42 @@ export const ICON = {
 export const BAR_HEIGHT = 6;
 
 export type Tone = "default" | "ok" | "warning" | "danger";
+
+// ── 所在容器 ────────────────────────────────────────────────────────
+
+/**
+ * 同一批组件会出现在两种容器里，而两者的**宿主 chrome 完全不同**：
+ *
+ * | | 时间线 | composer pill 的 popover |
+ * |---|---|---|
+ * | 外框 | 没有，卡片自己画 | 宿主画（border + 圆角 + 阴影 + `surface0`） |
+ *
+ * popover 里的分层**一条边框都不画**，全靠底色：
+ * 宿主 `surface0` → `CardShell` `surface1` → `RowShell` `surface2`。
+ * | 内边距 | 卡片自己给 | 宿主给 `padding: spacing[3]` |
+ * | 滚动 | 时间线滚 | 宿主 `scrollable: true` |
+ * | 标题 | 卡片自己画 | 手机是 sheet，宿主已显示 `button.title` |
+ * | 宽度 | 跟随时间线 | **280–420** |
+ * | 高度 | 不限 | `maxHeight: 440` |
+ *
+ * ⭐ 在 popover 里继续画卡片边框就会**边框套边框**，内边距也会翻倍。
+ * 但 `CardShell` / `RowShell` / `KeyValue` 是两处共享的，逐个透传 `flat`
+ * 太脏 —— 用一个上下文让它们自己知道身处哪里。
+ *
+ * 尺寸与形态都是从宿主 web-ui 产物里读出来的（`MenuSurface` 那处）：
+ * `minWidth:280 maxWidth:420 maxHeight:440 scrollable compactMode:"sheet"`。
+ */
+export type SurfaceKind = "timeline" | "popover";
+
+const SurfaceContext = createContext<SurfaceKind>("timeline");
+
+export function useSurfaceKind(): SurfaceKind {
+  return useContext(SurfaceContext);
+}
+
+export function SurfaceProvider({ kind, children }: { kind: SurfaceKind; children: React.ReactNode }) {
+  return <SurfaceContext.Provider value={kind}>{children}</SurfaceContext.Provider>;
+}
 
 export function toneColor(theme: PluginTheme, tone: Tone | undefined): string {
   switch (tone) {
@@ -222,13 +258,37 @@ export function BoolMark({ value, label, theme }: { value: boolean; label: strin
 
 // ── 容器 ────────────────────────────────────────────────────────────
 
-/** 卡片外框。四张卡片的内边距、圆角、描边从此只有一处定义。 */
+/**
+ * 卡片外框。四张卡片的内边距、圆角、描边从此只有一处定义。
+ *
+ * ⚠️ **在 popover 里它会自动摊平**（无边框、无背景、无内边距）——
+ * 宿主的 `MenuSurface` 已经给了边框、圆角、阴影和 `padding: spacing[3]`，
+ * 再画一层就是边框套边框、内边距翻倍。见 SurfaceKind 的说明。
+ */
 export function CardShell({ theme, accentColor, compact, children }: {
   theme: PluginTheme;
   accentColor?: string;
   compact?: boolean;
   children: React.ReactNode;
 }) {
+  if (useSurfaceKind() === "popover") {
+    // ⭐ 不描边，改用底色分层：宿主 surface0 → 卡片 surface1 → 行 surface2。
+    // 完全摊平（无背景）的话，连着几张卡片会糊成一片分不开。
+    // 强调色只用左侧一条竖线，不围一圈。
+    return (
+      <View
+        style={{
+          gap: SPACE.gap,
+          padding: SPACE.row,
+          borderRadius: RADIUS.row,
+          backgroundColor: theme.colors.surface1,
+          ...(accentColor ? { borderLeftWidth: 3, borderLeftColor: accentColor } : {}),
+        }}
+      >
+        {children}
+      </View>
+    );
+  }
   return (
     <View
       style={{
@@ -268,6 +328,9 @@ export function CardTitle({ label, theme }: { label: string; theme: PluginTheme 
  * 卡片里的一条。任务、subagent 子任务、子输出、结构化数据的行都用这个。
  *
  * `tone` 只染左边那条竖线和描边，不染背景 —— 整块染色在时间线上太吵。
+ *
+ * ⚠️ **popover 里改成「填充不描边」**：宿主外框已经有一圈线，行再描边就是
+ * 第三层。用 `surface1` 填充在 `surface0` 底上，层次一样清楚且安静。
  */
 export function RowShell({ theme, tone, active, children }: {
   theme: PluginTheme;
@@ -276,6 +339,25 @@ export function RowShell({ theme, tone, active, children }: {
   children: React.ReactNode;
 }) {
   const accent = tone && tone !== "default" ? toneColor(theme, tone) : undefined;
+  if (useSurfaceKind() === "popover") {
+    // 行坐在卡片（surface1）之上，所以用 surface2；`active` 不换底色而是加一条
+    // 强调竖线 —— 底色只用来表达层级，状态交给竖线，两者不抢。
+    return (
+      <View
+        style={{
+          gap: SPACE.tight,
+          padding: SPACE.row,
+          borderRadius: RADIUS.row,
+          backgroundColor: theme.colors.surface2,
+          ...(accent || active
+            ? { borderLeftWidth: 3, borderLeftColor: accent ?? theme.colors.accent }
+            : {}),
+        }}
+      >
+        {children}
+      </View>
+    );
+  }
   return (
     <View
       style={{
@@ -350,7 +432,9 @@ export function KeyValue({ label, theme, stacked, children }: {
   stacked?: boolean;
   children: React.ReactNode;
 }) {
-  if (stacked) {
+  // ⚠️ popover 只有 280–420 宽，「标签左 + 值右对齐」那一行在这里必然挤成
+  // 两行且右对齐很难看 —— 窄容器里一律堆叠。
+  if (stacked || useSurfaceKind() === "popover") {
     return (
       <View style={{ gap: SPACE.tight }}>
         <Text style={text(theme, "meta", { muted: true, strong: true })}>{label}</Text>
@@ -416,13 +500,40 @@ export function DisclosureHeader({ open, onPress, label, theme, count, tone }: {
 // ── 面板 ────────────────────────────────────────────────────────────
 
 /**
- * 面板外框。三个面板（任务 / subagents / 用量）从此长一个样。
+ * popover 外框。三个 composer pill 弹出的内容从此长一个样。
  *
- * ⭐ 它们都开在 explorer 那个侧边容器里，宽度很窄且可变 —— 所以**不设固定高度**
- * （曾经有一个写死 `height: 500/580`，在侧栏里要么留白要么被截）。
+ * ═══════════════════════════════════════════════════════════════════
+ * ⭐ **这里几乎什么都不画 —— 因为宿主已经画好了。**
+ *
+ * 宿主渲染插件 popover 的方式（从 web-ui 产物读出来的）：
+ *
+ * ```js
+ * <MenuSurface sheetTitle={button.title} minWidth={280} maxWidth={420}
+ *              maxHeight={440} scrollable compactMode="sheet">
+ *   <View style={{ padding: spacing[3], gap: spacing[2] }}>
+ *     <Content … close={close} />
+ *   </View>
+ * </MenuSurface>
+ * ```
+ *
+ * 也就是说宿主负责：**外框（border + 圆角 + 阴影 + `surface0`）、内边距、
+ * 子元素间距、滚动、以及手机上的 sheet 标题**。
+ *
+ * 所以这里绝不能再套：
+ *
+ * - ❌ 外边距 —— 会和宿主的 `spacing[3]` 叠成双份
+ * - ❌ `ScrollView` —— 宿主已经 `scrollable`，双层滚动手势会打架
+ * - ❌ `flex: 1` —— 宿主按内容撑开（`maxHeight` 封顶），没有参照会塌
+ * - ❌ 边框 —— 就是「边框套边框」的来源
+ *
+ * ⚠️ **标题只在桌面画。** `compactMode: "sheet"` 意味着窄屏是 sheet，
+ * 宿主已经把 `button.title` 显示在 sheet 头上了，再画一个就是重复。
+ * ═══════════════════════════════════════════════════════════════════
  */
-export function PanelShell({ theme, title, subtitle, actions, footer, children }: {
+export function PopoverShell({ theme, compact, title, subtitle, actions, footer, children }: {
   theme: PluginTheme;
+  /** 来自 `layout.compact` —— true 表示宿主把它渲染成了带标题的 sheet。 */
+  compact: boolean;
   title: string;
   subtitle?: string | null;
   actions?: React.ReactNode;
@@ -430,33 +541,29 @@ export function PanelShell({ theme, title, subtitle, actions, footer, children }
   children: React.ReactNode;
 }) {
   return (
-    <View style={{ flex: 1, backgroundColor: theme.colors.surface0 }}>
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "flex-start",
-          justifyContent: "space-between",
-          gap: SPACE.gap,
-          paddingHorizontal: SPACE.card,
-          paddingTop: SPACE.card,
-          paddingBottom: SPACE.gap,
-        }}
-      >
-        <View style={{ gap: SPACE.hair, flex: 1 }}>
-          <Text numberOfLines={1} style={text(theme, "panelTitle")}>{title}</Text>
-          {subtitle ? <Text style={text(theme, "meta", { muted: true })}>{subtitle}</Text> : null}
-        </View>
-        {actions ?? null}
-      </View>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: SPACE.card, paddingBottom: SPACE.card, gap: SPACE.gap }}>
+    <SurfaceProvider kind="popover">
+      <View style={{ gap: SPACE.gap }}>
+        {compact ? null : (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: SPACE.gap }}>
+            <View style={{ flex: 1, gap: SPACE.hair }}>
+              <Text numberOfLines={1} style={text(theme, "cardTitle")}>{title}</Text>
+              {subtitle ? <Text style={text(theme, "meta", { muted: true })}>{subtitle}</Text> : null}
+            </View>
+            {actions ?? null}
+          </View>
+        )}
+        {compact && subtitle ? (
+          <Text style={text(theme, "meta", { muted: true })}>{subtitle}</Text>
+        ) : null}
+        {compact && actions ? <MetaRow>{actions}</MetaRow> : null}
         {children}
-      </ScrollView>
-      {footer ? (
-        <View style={{ paddingHorizontal: SPACE.card, paddingVertical: SPACE.gap, borderTopWidth: 1, borderTopColor: theme.colors.border }}>
-          {footer}
-        </View>
-      ) : null}
-    </View>
+        {footer ? (
+          <View style={{ paddingTop: SPACE.gap, borderTopWidth: 1, borderTopColor: theme.colors.border }}>
+            {footer}
+          </View>
+        ) : null}
+      </View>
+    </SurfaceProvider>
   );
 }
 

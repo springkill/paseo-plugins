@@ -29,7 +29,7 @@ import {
   KeyValue,
   MetaRow,
   Mono,
-  PanelShell,
+  PopoverShell,
   RowShell,
   SPACE,
   text,
@@ -206,8 +206,9 @@ export function SubagentPopover({ theme, host, layout, agentId }: AgentPillConte
   const counts = subagentCounts(query.data?.calls);
 
   return (
-    <PanelShell
+    <PopoverShell
       theme={theme}
+      compact={layout.compact}
       title={t.panel_subagents}
       subtitle={t.subagents_summary(counts.active, counts.total, query.data?.calls.length ?? 0)}
       actions={query.isFetching ? <ActivityIndicator color={theme.colors.accent} /> : null}
@@ -220,7 +221,7 @@ export function SubagentPopover({ theme, host, layout, agentId }: AgentPillConte
       {!query.isLoading && !query.error && query.data?.calls.length === 0 ? (
         <EmptyState label={t.subagents_none_for_agent} theme={theme} />
       ) : null}
-    </PanelShell>
+    </PopoverShell>
   );
 }
 

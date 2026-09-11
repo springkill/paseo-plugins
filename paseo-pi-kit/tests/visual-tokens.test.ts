@@ -81,13 +81,50 @@ test("色调映射只有一处实现", () => {
   assert.deepEqual(offenders, [], "改用 tokens.client.tsx 的 toneColor —— 曾经有一份把 warning 映射成灰色");
 });
 
-test("面板一律套 PanelShell", () => {
+test("⭐ popover 内容一律套 PopoverShell", () => {
   // 三个面板曾经三种头部：一个没有标题、一个有标题、一个有标题带刷新按钮，
   // 内边距还各写各的（10 / 12 / 14 / 18）。
-  const offenders = FILES.filter(([, source]) => /export function \w*Panel\b/.test(source))
-    .filter(([, source]) => !source.includes("PanelShell") && !source.includes("ProviderBalancesCard"))
+  const offenders = FILES.filter(([, source]) => /export function \w*Popover\b/.test(source))
+    .filter(([, source]) => !source.includes("PopoverShell") && !source.includes("ProviderBalancesCard"))
     .map(([name]) => name);
-  assert.deepEqual(offenders, [], "面板用 <PanelShell>，别自己拼头部和 ScrollView");
+  assert.deepEqual(offenders, [], "popover 内容用 <PopoverShell>，别自己拼头部");
+});
+
+test("⭐ popover 里不许再套滚动与固定高度", () => {
+  // ═════════════════════════════════════════════════════════════════
+  // 宿主渲染插件 popover 的方式（从 web-ui 产物读出来的）：
+  //
+  //   <MenuSurface sheetTitle minWidth={280} maxWidth={420}
+  //                maxHeight={440} scrollable compactMode="sheet">
+  //     <View style={{ padding: spacing[3], gap: spacing[2] }}>
+  //       <Content … />
+  //
+  // 宿主已经负责外框、内边距、子元素间距、滚动、以及手机上的 sheet 标题。
+  // 再套一层就是：边框套边框、内边距翻倍、双层滚动手势打架、
+  // flex:1 在不定高容器里塌掉。
+  // ═════════════════════════════════════════════════════════════════
+  const offenders: string[] = [];
+  for (const [name, source] of FILES) {
+    const stripped = source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^[ \t]*\/\/.*$/gm, "");
+    if (/\bScrollView\b/.test(stripped)) offenders.push(`${name}: ScrollView —— 宿主已 scrollable`);
+    if (/height:\s*\d/.test(stripped)) offenders.push(`${name}: 固定高度 —— 宿主按内容撑开，maxHeight 封顶`);
+  }
+  assert.deepEqual(offenders, []);
+});
+
+test("⭐ popover 里靠底色分层，不画边框", () => {
+  // 宿主 surface0 → CardShell surface1 → RowShell surface2。
+  // 在宿主那圈边框里再画边框就是用户看到的「边框嵌套边框」。
+  const tokens = readFileSync(join(UI, "tokens.tsx"), "utf8");
+  const popoverBranches = [...tokens.matchAll(/useSurfaceKind\(\) === "popover"\)\s*\{[\s\S]{0,700}?\n  \}/g)]
+    .map((m) => m[0]);
+  assert.ok(popoverBranches.length >= 2, "CardShell 与 RowShell 都应当有 popover 分支");
+  for (const branch of popoverBranches) {
+    assert.ok(
+      !/borderWidth:/.test(branch),
+      `popover 分支不该画整圈边框（borderLeftWidth 表达强调是可以的）：\n${branch.slice(0, 200)}`,
+    );
+  }
 });
 
 test("令牌本身是自洽的", () => {

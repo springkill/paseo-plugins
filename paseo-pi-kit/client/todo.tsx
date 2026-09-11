@@ -31,7 +31,8 @@ import {
   ExpandToggle,
   ICON,
   MetaRow,
-  PanelShell,
+  PopoverShell,
+  useSurfaceKind,
   ProgressBar,
   RowShell,
   SPACE,
@@ -121,15 +122,20 @@ function BoardView({ board, theme, compact, t, initiallyExpanded = false }: {
       ? liveTasks.slice(-3)
       : pending.slice(0, 3);
   const visibleTasks = expanded ? liveTasks : preview;
+  const inPopover = useSurfaceKind() === "popover";
 
   return (
     <CardShell theme={theme} compact={compact}>
-      <CardHeader
-        trailing={<Text style={text(theme, "rowTitle")}>{completed}/{liveTasks.length}</Text>}
-      >
-        <Icon name="ListTodo" size={ICON.card} color={theme.colors.accent} />
-        <CardTitle label={t.todo_title} theme={theme} />
-      </CardHeader>
+      {/* ⚠️ popover 的外壳已经画了标题和 `3/7 完成`，这里再画一遍就是重复。
+          时间线上没有那层外壳，标题必须留着。 */}
+      {inPopover ? null : (
+        <CardHeader
+          trailing={<Text style={text(theme, "rowTitle")}>{completed}/{liveTasks.length}</Text>}
+        >
+          <Icon name="ListTodo" size={ICON.card} color={theme.colors.accent} />
+          <CardTitle label={t.todo_title} theme={theme} />
+        </CardHeader>
+      )}
 
       <ProgressBar percent={percent} theme={theme} />
 
@@ -221,8 +227,9 @@ export function TodoPopover({ theme, host, layout, agentId }: AgentPillContentPr
   const completed = live.filter((task) => task.status === "completed").length;
 
   return (
-    <PanelShell
+    <PopoverShell
       theme={theme}
+      compact={layout.compact}
       title={t.modal_todos}
       subtitle={board ? t.todo_progress(completed, live.length) : null}
       actions={query.isFetching ? <ActivityIndicator color={theme.colors.accent} /> : null}
@@ -233,7 +240,7 @@ export function TodoPopover({ theme, host, layout, agentId }: AgentPillContentPr
       {!query.isLoading && !query.error && !board ? (
         <EmptyState label={t.todo_none_for_agent} theme={theme} />
       ) : null}
-    </PanelShell>
+    </PopoverShell>
   );
 }
 

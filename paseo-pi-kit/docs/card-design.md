@@ -435,3 +435,68 @@ layout: { compact: boolean; platform: "ios" | "android" | "web" }
 
 §4 里我自己造的运行时指纹，宿主 0.8 内建了一半。信标仍然保留 ——
 它还报**版本号**，而「设备在跑哪一版 bundle」才是那几轮空转的真正卡点。
+
+---
+
+## 七、popover 里的布局：宿主已经画了一半
+
+改成 popover 之后出现两个问题：**边框嵌套边框**，以及**内容是按侧栏宽度设计的**。
+根因是同一批组件要出现在两种容器里，而两者的宿主 chrome 完全不同。
+
+### 宿主给了什么（从 web-ui 产物读出来的）
+
+```js
+<MenuSurface sheetTitle={button.title} minWidth={280} maxWidth={420}
+             maxHeight={440} scrollable compactMode="sheet">
+  <View style={{ padding: spacing[3], gap: spacing[2] }}>
+    <Content … close={close} />
+  </View>
+</MenuSurface>
+// desktopContainer: surface0 + borderWidth 1 + borderRadius lg + shadow + maxHeight 400
+```
+
+| | 时间线 | popover |
+|---|---|---|
+| 外框 | 没有，卡片自己画 | **宿主画**（border + 圆角 + 阴影 + `surface0`） |
+| 内边距 | 卡片自己给 | **宿主给** `spacing[3]` |
+| 子元素间距 | 卡片自己给 | **宿主给** `spacing[2]` |
+| 滚动 | 时间线滚 | **宿主** `scrollable: true` |
+| 标题 | 卡片自己画 | **窄屏是 sheet，宿主已显示** `button.title` |
+| 宽度 | 跟随时间线 | **280–420** |
+| 高度 | 不限 | **maxHeight 440** |
+
+⭐ `compactMode: "sheet"` 意味着窄屏走 sheet 形态 —— 所以**标题只在
+`!layout.compact` 时自己画**，否则重复。
+
+### 做法：一个 surface 上下文
+
+`CardShell` / `RowShell` / `KeyValue` 是时间线与 popover 共享的，逐个透传
+`flat` 太脏。改成一个上下文（`SurfaceProvider` / `useSurfaceKind()`），
+组件自己知道身处哪里：
+
+| | 时间线 | popover |
+|---|---|---|
+| `CardShell` | 边框 + `surface1` + `SPACE.card` | **无边框**，`surface1` 填充 |
+| `RowShell` | 边框 + `surface0` | **无边框**，`surface2` 填充；状态走左侧竖线 |
+| `KeyValue` | 标签左 + 值右对齐 | **一律堆叠**（280 宽右对齐必然挤成两行） |
+| 外壳 | — | `PopoverShell`：无内边距、无 ScrollView、无 `flex: 1` |
+
+⭐ **popover 里一条边框都不画，分层全靠底色**：
+宿主 `surface0` → 卡片 `surface1` → 行 `surface2`。
+
+一开始试过「完全摊平」（无背景无内边距），结果连着几张 provider 卡片糊成
+一片分不开 —— 填充比摊平好。
+
+### 还去掉了
+
+- `BoardView` 在 popover 里不画自己的标题行（外壳已经有标题和 `3/7 完成`）
+- `PanelShell` 整个删除（`flex: 1` + `ScrollView` + 固定高度在 popover 里全是错的）
+
+### 守住
+
+`tests/visual-tokens.test.ts` 三条新规矩，均已负向验证：
+
+1. popover 内容一律套 `PopoverShell`
+2. 客户端不许出现 `ScrollView` 或固定 `height:`（宿主已 scrollable、按内容撑开）
+3. `useSurfaceKind() === "popover"` 分支里不许出现 `borderWidth:`
+   （`borderLeftWidth` 表达强调是可以的）

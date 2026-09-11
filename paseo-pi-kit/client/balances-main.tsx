@@ -30,7 +30,7 @@ import {
   EmptyState,
   ErrorText,
   KeyValue,
-  PanelShell,
+  PopoverShell,
   ProgressBar,
   SPACE,
   text,
@@ -114,7 +114,7 @@ function ProviderCard({ provider, preferred, theme, t }: {
   );
 }
 
-export function ProviderBalancesCard({ theme, host, preferredProviderId }: PluginHostProps & {
+export function ProviderBalancesCard({ theme, host, layout, preferredProviderId }: PluginHostProps & {
   preferredProviderId?: string | null;
 }) {
   const localeCtx = useLocale(host.id);
@@ -151,8 +151,9 @@ export function ProviderBalancesCard({ theme, host, preferredProviderId }: Plugi
   }
 
   return (
-    <PanelShell
+    <PopoverShell
       theme={theme}
+      compact={layout.compact}
       title={t.usage_modal_title}
       subtitle={usageQuery.data?.fetchedAt ? t.usage_fetched(formatReset(usageQuery.data.fetchedAt)) : t.usage_subtitle}
       actions={
@@ -200,6 +201,6 @@ export function ProviderBalancesCard({ theme, host, preferredProviderId }: Plugi
             : null}
         </View>
       ) : null}
-    </PanelShell>
+    </PopoverShell>
   );
 }
