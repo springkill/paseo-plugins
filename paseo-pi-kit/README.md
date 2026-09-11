@@ -80,7 +80,7 @@ runtime dependency at all.
 
 ## A compatibility layer
 
-`domain/pi-notice-parser.shared.ts` is **temporary**, marked
+`shared/pi-notice-parser.ts` is **temporary**, marked
 `COMPAT(pi-custom-message)`.
 
 Pi's notices carry full `details`, and Pi renders them structurally in its own

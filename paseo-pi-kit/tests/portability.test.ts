@@ -32,13 +32,20 @@ import test from "node:test";
 
 const ROOT = join(import.meta.dirname, "..");
 
+/**
+ * 会进 **app bundle** 的文件 —— 只有这些受 Hermes 约束。
+ *
+ * ⭐ 0.8 起边界按目录划：`client/` 只进 app bundle，`server/` 只进 daemon，
+ * `shared/` 两边都进。所以 `server/` 整个豁免（那边是 Node），
+ * `client/` 和 `shared/` 必须守规矩。
+ */
 function shippedFiles(): Array<readonly [string, string]> {
-  const out: Array<readonly [string, string]> = [["index.ts", readFileSync(join(ROOT, "index.ts"), "utf8")]];
-  for (const dir of ["domain", "ui"]) {
+  const out: Array<readonly [string, string]> = [
+    ["index.client.tsx", readFileSync(join(ROOT, "index.client.tsx"), "utf8")],
+  ];
+  for (const dir of ["shared", "client"]) {
     for (const name of readdirSync(join(ROOT, dir))) {
       if (!/\.(ts|tsx)$/.test(name)) continue;
-      // .server.ts 只在 daemon 里跑（Node），不受 Hermes 约束
-      if (name.endsWith(".server.ts")) continue;
       out.push([`${dir}/${name}`, readFileSync(join(ROOT, dir, name), "utf8")] as const);
     }
   }
@@ -84,11 +91,11 @@ test("豁免必须写理由", () => {
 });
 
 test("格式化只有一处实现", () => {
-  const format = readFileSync(join(ROOT, "domain", "format.shared.ts"), "utf8");
+  const format = readFileSync(join(ROOT, "shared", "format.ts"), "utf8");
   assert.ok(/export function formatNumber/.test(format));
   assert.ok(/export function formatDateTime/.test(format));
   const others = shippedFiles()
-    .filter(([name]) => name !== "domain/format.shared.ts")
+    .filter(([name]) => name !== "shared/format.ts")
     .filter(([, source]) => /function formatNumber\b|function formatDateTime\b/.test(stripComments(source)))
     .map(([name]) => name);
   assert.deepEqual(others, [], "从 domain/format.shared.ts 引，别各写各的");
@@ -100,7 +107,7 @@ test("⭐ 错误边界里的版本号与 package.json 一致", () => {
   // 边界把版本号画进错误消息，好让一张截图就能分辨「修没修好」和
   // 「app 还在跑旧 bundle」—— 对不上的话这个作用就没了，而且会误导。
   const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")) as { version: string };
-  const source = readFileSync(join(ROOT, "ui", "card-boundary.client.tsx"), "utf8");
+  const source = readFileSync(join(ROOT, "client", "card-boundary.tsx"), "utf8");
   const declared = source.match(/^export const VERSION = "([^"]+)";$/m)?.[1];
   assert.equal(declared, pkg.version, "改版本号时 ui/card-boundary.client.tsx 也要跟着改");
 });
@@ -108,19 +115,14 @@ test("⭐ 错误边界里的版本号与 package.json 一致", () => {
 test("⭐ 所有插件界面都裹了错误边界", () => {
   // 宿主的 SurfaceErrorBoundary 同样包着面板和 pill，但它只显示一行
   // `Plugin failed: <msg>`，细节进了 app 里的 console.warn —— 等于查不了。
-  const sources = [
-    ["index.ts", readFileSync(join(ROOT, "index.ts"), "utf8")] as const,
-    ...readdirSync(join(ROOT, "ui"))
-      .filter((name) => name.endsWith(".client.tsx"))
-      .map((name) => [`ui/${name}`, readFileSync(join(ROOT, "ui", name), "utf8")] as const),
-  ];
+  const sources = shippedFiles();
   const offenders = sources.flatMap(([name, source]) =>
     [...source.matchAll(/^\s*Component: (\w+),$/gm)].map((m) => `${name}: Component: ${m[1]}`),
   );
   assert.deepEqual(offenders, [], "改成 Component: withCardBoundary(\"<id>\", X)");
 });
 
-test("⭐ Icon 一律从 @getpaseo/plugin/react-native 取", () => {
+test("⭐ Icon 一律从 @getpaseo/plugin/client/react-native 取", () => {
   // 宿主给 `@getpaseo/plugin` 和 `@getpaseo/plugin/react-native` 都注入了 Icon，
   // 但**npm 包本身只导出后者** —— 前者纯靠宿主运行时补。少一处不确定性总是好的，
   // 而且这类问题炸出来是 `Element type is invalid … but got: undefined`，
@@ -132,7 +134,7 @@ test("⭐ Icon 一律从 @getpaseo/plugin/react-native 取", () => {
       if (/\bIcon\b/.test(match[1]!.replace(/\btype\s+\w+/g, ""))) offenders.push(name);
     }
   }
-  assert.deepEqual(offenders, [], '改成 import { Icon } from "@getpaseo/plugin/react-native"');
+  assert.deepEqual(offenders, [], '改成 import { Icon } from "@getpaseo/plugin/client/react-native"');
 });
 
 test("⭐ 不用 React.xxx，一律具名导入", () => {

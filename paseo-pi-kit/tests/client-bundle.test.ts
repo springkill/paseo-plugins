@@ -49,14 +49,25 @@ const COMPILER = compilerPath();
 
 test("⭐ client bundle 能 evaluate，且注册了全部贡献", { skip: COMPILER ? false : "本机没有全局 @getpaseo/cli" }, async () => {
   const { compilePlugin } = await import(COMPILER!);
-  const entry = join(import.meta.dirname, "..", "index.ts");
-  const { clientBundle } = (await compilePlugin(entry)) as { clientBundle: string };
+  // ⭐ 0.8 起是两个入口：compilePlugin({ client, server })，不再是单个 index.ts
+  const root = join(import.meta.dirname, "..");
+  const { clientBundle } = (await compilePlugin({
+    client: join(root, "index.client.tsx"),
+    server: join(root, "index.server.ts"),
+  })) as { clientBundle: string };
 
   const require_ = createRequire(join(import.meta.dirname, "..", "package.json"));
   // 宿主在运行时提供这些；测试里用真包，取不到就给个惰性桩
   const resolve = (id: string): unknown => {
     if (id === "react-native") return new Proxy({}, { get: () => () => null });
     if (id === "@tanstack/react-query") return new Proxy({}, { get: () => () => ({}) });
+    // 0.8 的子路径
+    if (id === "@getpaseo/plugin/client") {
+      return new Proxy({}, { get: () => () => undefined });
+    }
+    if (id === "@getpaseo/plugin/client/react-native") {
+      return { Icon: () => null, Modal: () => null, useToast: () => () => {} };
+    }
     try {
       return require_(id);
     } catch {
@@ -67,27 +78,47 @@ test("⭐ client bundle 能 evaluate，且注册了全部贡献", { skip: COMPIL
   const seen = {
     transformers: [] as string[],
     renderers: [] as string[],
+    pills: [] as string[],
     panels: [] as string[],
     commands: [] as string[],
-    surfaces: [] as string[],
-    sidebarItems: [] as string[],
-    clientSides: 0,
   };
-  const plugin = {
-    // client bundle 里 `plugin.handle(...)` 应当已被编译器删掉
-    handle: () => assert.fail("client bundle 不该保留 plugin.handle —— 它引用的是 .server 代码"),
-    addTimelineTransformer: (c: { id: string }) => seen.transformers.push(c.id),
-    addTimelineRenderer: (c: { kind: string }) => seen.renderers.push(c.kind),
-    addWorkspacePanel: (c: { id: string; locations?: string[] }) => {
-      // 少了 explorer 就回不到「跟文件树并列」那个位置
-      assert.ok(c.locations?.includes("explorer"), `面板 ${c.id} 必须支持 explorer`);
-      seen.panels.push(c.id);
+  const noop = () => {};
+  const client = {
+    // ⚠️ 0.8 的 client 上下文 —— 服务端那半边（handle）在另一个 bundle 里，
+    // 这里出现就说明目录边界破了
+    handle: () => assert.fail("client bundle 不该有 handle —— 那是 index.server.ts 的事"),
+    addTimelineTransformer: (c: { id: string }) => { seen.transformers.push(c.id); return noop; },
+    addTimelineRenderer: (c: { kind: string; Component: unknown }) => {
+      assert.equal(typeof c.Component, "function", `renderer ${c.kind} 的 Component 必须是组件`);
+      seen.renderers.push(c.kind);
+      return noop;
     },
-    addCommandCenterItem: (c: { id: string }) => seen.commands.push(c.id),
-    addClientSide: () => { seen.clientSides++; },
-    addSurface: (id: string) => seen.surfaces.push(id),
-    addSidebarItem: (c: { id: string }) => seen.sidebarItems.push(c.id),
-    addAttachmentSource: () => {}, addTheme: () => {},
+    addWorkspacePanel: (c: { id: string }) => { seen.panels.push(c.id); return noop; },
+    addCommandCenterItem: (c: { id: string }) => { seen.commands.push(c.id); return noop; },
+    addComposerPill: (c: { id: string; agentId: string; button: Record<string, unknown> }) => {
+      const behavior = c.button.behavior as { kind?: string; Content?: unknown } | undefined;
+      // ⭐ 手机上 explorer 侧栏根本不存在，pill 必须是 popover
+      assert.equal(behavior?.kind, "popover", `pill ${c.id} 必须用 popover`);
+      assert.equal(typeof behavior?.Content, "function", `pill ${c.id} 的 Content 必须是组件`);
+      assert.equal(typeof c.button.icon, "function", `pill ${c.id} 的 icon 应当是活组件`);
+      seen.pills.push(c.id);
+      return { update: noop, remove: noop };
+    },
+    addSurface: () => noop, addSidebarItem: () => noop, addAttachmentSource: () => noop,
+    addTheme: () => noop, addSettingsScreen: () => noop, addSlashCommand: () => noop,
+    addHeaderButton: () => ({ update: noop, remove: noop }),
+    openPanel: () => assert.fail("0.8 起不开面板 —— pill 是 popover"),
+    openSurface: noop, openSettings: noop,
+    rpc: async () => ({}),
+    paseo: {
+      agents: {
+        subscribe: (cb: (u: unknown) => void) => {
+          cb({ kind: "upsert", agent: { id: "a1", workspaceId: "w1", provider: "pi" } });
+          return noop;
+        },
+        list: async () => ({ entries: [{ agent: { id: "a1", workspaceId: "w1", provider: "pi" } }] }),
+      },
+    },
   };
 
   // eslint-disable-next-line no-eval -- 就是要按宿主的方式执行它
@@ -95,21 +126,20 @@ test("⭐ client bundle 能 evaluate，且注册了全部贡献", { skip: COMPIL
   const exports = typeof factory === "function"
     ? (factory as (r: typeof resolve) => Record<string, unknown>)(resolve)
     : (factory as Record<string, unknown>);
-  const contribute = (exports.default ?? exports) as (p: typeof plugin) => (() => void) | undefined;
+  const contribute = (exports.default ?? exports) as (c: typeof client) => (() => void) | undefined;
   assert.equal(typeof contribute, "function", "client bundle 应当默认导出 contribute");
 
-  const cleanup = contribute(plugin);
+  const cleanup = contribute(client);
+  await new Promise((resolve_) => setTimeout(resolve_, 30));
 
   assert.deepEqual(seen.transformers.toSorted(), [
     "native-todo-card", "pi-notice-card", "pi-subagent-card", "pi-todo-tool-card",
   ], "四个 transformer 少一个都意味着对应的卡片会退回裸文本");
   assert.deepEqual(seen.renderers.toSorted(), ["pi-notice", "pi-subagent-card", "pi-todo-board"]);
-  // ⭐ 三块功能各有一个面板 —— composer pill 点开的就是它们（explorer 里跟
-  // 文件树、git 变更树并列），不再是遮住对话的 Modal
-  assert.deepEqual(seen.panels.toSorted(), ["pi-subagents", "pi-todos", "pi-usage"]);
-  assert.deepEqual(seen.commands.toSorted(), ["open-pi-subagents", "open-pi-todos", "open-pi-usage"]);
-  assert.equal(seen.clientSides, 1);
+  assert.deepEqual(seen.pills.toSorted(), ["pi-subagents", "pi-todos", "provider-usage"]);
+  // ⭐ 0.8 起不再注册面板与命令项 —— explorer 侧栏在窄屏上开不出来
+  assert.deepEqual(seen.panels, [], "面板已改成 popover");
+  assert.deepEqual(seen.commands, [], "命令项没有面板可开，已移除");
 
-  // cleanup 里引用 .server 符号是另一个踩过的坑（closeProviderUsageClient）
-  assert.doesNotThrow(() => cleanup?.(), "cleanup 不该在客户端 ReferenceError");
+  assert.doesNotThrow(() => cleanup?.(), "cleanup 不该抛");
 });

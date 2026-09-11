@@ -71,7 +71,7 @@ agent ID、provider、session realpath、当前用户的异步运行根目录和
 
 ## 一层兼容代码
 
-`domain/pi-notice-parser.shared.ts` 是**临时的**，标了 `COMPAT(pi-custom-message)`。
+`shared/pi-notice-parser.ts` 是**临时的**，标了 `COMPAT(pi-custom-message)`。
 
 Pi 的通知带完整 `details`，Pi 自己也用 `pi.registerMessageRenderer()` 在 TUI 里
 结构化渲染。但 Paseo 的 Pi provider（`pi/history-mapper.js` 的

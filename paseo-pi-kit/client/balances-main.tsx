@@ -9,16 +9,17 @@
  * - `Resets` / `Runs out` / `remaining` / `Fetched` 是硬编码英文，没进 i18n
  */
 
-import type { PluginHostProps, PluginTheme } from "@getpaseo/plugin";
-import { useRpc } from "@getpaseo/plugin";
+import type { PluginTheme } from "@getpaseo/plugin";
+import type { PluginHostProps } from "@getpaseo/plugin/client";
+import { useRpc } from "@getpaseo/plugin/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { output as ZodOutput } from "zod";
 import React, { useState } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
-import { providerUsageRpc } from "../domain/contracts.shared";
-import { formatDateTime, formatNumber } from "../domain/format.shared";
-import type { Translator } from "../domain/i18n.shared";
-import { LanguagePicker, useLocale } from "./locale.client";
+import { providerUsageRpc } from "../shared/contracts";
+import { formatDateTime, formatNumber } from "../shared/format";
+import type { Translator } from "../shared/i18n";
+import { LanguagePicker, useLocale } from "./locale";
 import {
   ActionButton,
   CardHeader,
@@ -34,7 +35,7 @@ import {
   SPACE,
   text,
   type Tone,
-} from "./tokens.client";
+} from "./tokens";
 
 const PASEO_USAGE_STALE_TIME_MS = 300_000;
 type Provider = ZodOutput<typeof providerUsageRpc.output>["providers"][number];

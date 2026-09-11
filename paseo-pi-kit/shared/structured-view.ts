@@ -32,7 +32,7 @@
  * 界面自己的文案（「空字段」「展开」）才走 i18n，在渲染层。
  */
 
-import { formatNumber } from "./format.shared";
+import { formatNumber } from "./format";
 
 export type ViewTone = "default" | "ok" | "warning" | "danger";
 

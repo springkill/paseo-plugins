@@ -6,25 +6,17 @@
  * 自己写状态文字，于是跟旁边的通知卡片一个 CardShell 一个裸 View。
  */
 
-import {
-  type PluginAgentPanelProps,
-  type PluginClientContext,
-  type PluginComposerPillProps,
-  type PluginTheme,
-  type PluginTimelineItemProps,
-  useAgent,
-  useRpc,
-} from "@getpaseo/plugin";
-import { Icon } from "@getpaseo/plugin/react-native";
+import type { PluginCleanup, PluginTheme } from "@getpaseo/plugin";
+import { type PluginClientContext, type PluginTimelineItemProps, useAgent, useRpc } from "@getpaseo/plugin/client";
+import { Icon } from "@getpaseo/plugin/client/react-native";
 import { useQuery } from "@tanstack/react-query";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
-import { subagentCallsRpc, type SubagentCall, type SubagentChild } from "../domain/contracts.shared";
-import { translator, type Translator } from "../domain/i18n.shared";
-import { localeFromTag } from "../domain/locale.shared";
-import { withCardBoundary } from "./card-boundary.client";
-import { openPanelPreferExplorer } from "./open-panel.client";
-import { detectClientLocale, LanguagePicker, useLocale } from "./locale.client";
+import { subagentCallsRpc, type SubagentCall, type SubagentChild } from "../shared/contracts";
+import { translator, type Translator } from "../shared/i18n";
+import { localeFromTag } from "../shared/locale";
+import { detectClientLocale, LanguagePicker, useLocale } from "./locale";
+import { registerAgentPill, type AgentPillContentProps, type AgentPillIconProps, type PushLabel } from "./pill";
 import {
   CardHeader,
   CardShell,
@@ -42,7 +34,7 @@ import {
   SPACE,
   text,
   type Tone,
-} from "./tokens.client";
+} from "./tokens";
 
 function statusMeta(
   status: SubagentCall["status"] | SubagentChild["status"],
@@ -200,7 +192,13 @@ export function SubagentTimelineCard({ item, theme, host, layout, agentId }: Plu
   return <SubagentCardView call={call} theme={theme} compact={layout.compact} t={t} />;
 }
 
-export function PiSubagentsPanel({ theme, host, layout, agentId }: PluginAgentPanelProps) {
+/**
+ * 点 pill 弹出的 subagent 列表。
+ *
+ * ⭐ 0.7 时这是个注册到 explorer 侧栏的面板。0.8 改成 popover —— explorer
+ * 在窄屏上根本不存在（见 docs/card-design.md §5），popover 两端都能用。
+ */
+export function SubagentPopover({ theme, host, layout, agentId }: AgentPillContentProps) {
   const localeCtx = useLocale(host.id);
   const t = localeCtx.t;
   const agentRunning = useAgent(agentId, (agent) => agent.status === "running") ?? false;
@@ -226,72 +224,33 @@ export function PiSubagentsPanel({ theme, host, layout, agentId }: PluginAgentPa
   );
 }
 
-function SubagentStatusPill({ theme, host, agentId }: PluginComposerPillProps) {
-  const { t } = useLocale(host.id);
-  const agent = useAgent(agentId, ({ status, title }) => ({ status, title }));
-  const query = useSubagentCalls(agentId, host.id, agent?.status === "running");
-  const { active, total } = subagentCounts(query.data?.calls);
+/**
+ * pill 的图标，同时把活标签推上去。0.8 的 `label` 是普通字符串，
+ * 没法在渲染里直接写「2/5 运行中」。见 client/pill.tsx。
+ */
+function createSubagentPillIcon(push: PushLabel) {
+  return function SubagentPillIcon({ theme, host, agentId, size, color }: AgentPillIconProps) {
+    const { t } = useLocale(host.id);
+    const agent = useAgent(agentId, ({ status, title }) => ({ status, title }));
+    const query = useSubagentCalls(agentId, host.id, agent?.status === "running");
+    const { active, total } = subagentCounts(query.data?.calls);
+    const label = t.subagents_pill(active, total);
 
-  return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: SPACE.tight, flexShrink: 1 }}>
-      {active
-        ? <ActivityIndicator size="small" color={theme.colors.accent} />
-        : <Icon name="Network" size={ICON.row} color={theme.colors.foregroundMuted} />}
-      <Text numberOfLines={1} style={text(theme, "meta", { strong: true, ...(active ? { accent: true } : { muted: true }) })}>
-        {t.subagents_pill(active, total)}
-      </Text>
-    </View>
-  );
+    useEffect(() => { push(label); }, [label]);
+
+    if (active) return <ActivityIndicator size="small" color={theme.colors.accent} />;
+    return <Icon name="Network" size={size} color={color} />;
+  };
 }
 
-export function contributeSubagentPills(client: PluginClientContext) {
-  // 注册时刻拿不到 useLocale；title 只是 tooltip，面板内容走完整判定
+export function registerSubagentPill(client: PluginClientContext): PluginCleanup {
+  // 注册时刻拿不到 useLocale；标题只是兜底文案，弹出内容走完整判定
   const t = translator(localeFromTag(detectClientLocale()) ?? "en");
-  const pills = new Map<string, { workspaceId: string; remove: () => void }>();
-  let active = true;
-  function remove(agentId: string) {
-    pills.get(agentId)?.remove();
-    pills.delete(agentId);
-  }
-  function upsert(agent: { id: string; workspaceId?: string; archivedAt?: string | null; provider?: string }) {
-    const isPi = agent.provider === "pi" || agent.provider?.startsWith("pi/") === true;
-    if (!active || !isPi || !agent.workspaceId || agent.archivedAt) {
-      remove(agent.id);
-      return;
-    }
-    const existing = pills.get(agent.id);
-    if (existing?.workspaceId === agent.workspaceId) return;
-    remove(agent.id);
-    const { id: agentId, workspaceId } = agent;
-    pills.set(agentId, {
-      workspaceId,
-      remove: client.addComposerPill({
-        id: "pi-subagents",
-        title: t.nav_open_subagents,
-        workspaceId,
-        agentId,
-        Component: withCardBoundary("pi-subagents-pill", SubagentStatusPill),
-        onPress() {
-          // ⚠️ 不能直接写 location: "explorer" —— 手机上 explorer 是 overlay
-          // 形态，没有可用的 pane，宿主会抛 "Explorer is unavailable"，
-          // 点了就什么都不发生。见 ui/open-panel.client.ts。
-          openPanelPreferExplorer(client.openPanel, "pi-subagents", { workspaceId, agentId });
-        },
-      }),
-    });
-  }
-  const unsubscribe = client.paseo.agents.subscribe((update) => {
-    if (update.kind === "upsert") upsert(update.agent);
-    else remove(update.agentId);
+  return registerAgentPill(client, {
+    id: "pi-subagents",
+    title: t.nav_open_subagents,
+    piOnly: true,
+    createIcon: createSubagentPillIcon,
+    Content: SubagentPopover,
   });
-  void client.paseo.agents.list({}).then(({ entries }) => {
-    if (!active) return;
-    for (const { agent } of entries) upsert(agent);
-  }).catch((error) => console.error("[pi-subagents] failed to seed composer pills", error));
-  return () => {
-    active = false;
-    unsubscribe();
-    for (const registration of pills.values()) registration.remove();
-    pills.clear();
-  };
 }

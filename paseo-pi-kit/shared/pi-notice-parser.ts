@@ -61,7 +61,7 @@ import {
   type PiChildOutput,
   type PiCompletionEntry,
   type PiNotice,
-} from "./contracts.shared";
+} from "./contracts";
 
 function record(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === "object" && !Array.isArray(value)

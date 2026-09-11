@@ -19,7 +19,7 @@
  */
 
 import type { PluginTheme } from "@getpaseo/plugin";
-import { Icon } from "@getpaseo/plugin/react-native";
+import { Icon } from "@getpaseo/plugin/client/react-native";
 import React, { useState } from "react";
 import { Text, View } from "react-native";
 import {
@@ -27,9 +27,9 @@ import {
   type ViewField,
   type ViewNode,
   type ViewValue,
-} from "../domain/structured-view.shared";
-import { formatDateTime } from "../domain/format.shared";
-import type { Translator } from "../domain/i18n.shared";
+} from "../shared/structured-view";
+import { formatDateTime } from "../shared/format";
+import type { Translator } from "../shared/i18n";
 import {
   BoolMark,
   Chip,
@@ -46,7 +46,7 @@ import {
   text,
   toneColor,
   type Tone,
-} from "./tokens.client";
+} from "./tokens";
 
 /** 正文超过这个长度就折起来 —— 子任务输出动辄几千字。 */
 const COLLAPSE_OVER = 320;

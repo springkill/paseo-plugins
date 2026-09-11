@@ -1,6 +1,6 @@
 # Pi 通知消息格式对照表
 
-`domain/pi-notice-parser.shared.ts` 是照着这张表实现的。表本身是从**已安装的 Pi 插件源码**里
+`shared/pi-notice-parser.ts` 是照着这张表实现的。表本身是从**已安装的 Pi 插件源码**里
 逐条抠出来的，不是从渲染结果反推的。
 
 > 采样环境：`pi` 0.84.4，插件见下表版本。

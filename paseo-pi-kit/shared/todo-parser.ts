@@ -1,4 +1,4 @@
-import { TodoBoardSchema, type TodoBoard, type TodoTask } from "./contracts.shared";
+import { TodoBoardSchema, type TodoBoard, type TodoTask } from "./contracts";
 
 function record(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === "object" && !Array.isArray(value)

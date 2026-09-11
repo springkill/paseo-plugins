@@ -16,8 +16,8 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import type { output as ZodOutput } from "zod";
-import type { localeRpc, setLocaleRpc } from "../domain/contracts.shared";
-import { lockedByEnv, resolveLocale, type LocalePreference } from "../domain/locale.shared";
+import type { localeRpc, setLocaleRpc } from "../shared/contracts";
+import { lockedByEnv, resolveLocale, type LocalePreference } from "../shared/locale";
 
 export function sharedLocalePath(): string {
   const home = process.env.PASEO_HOME ?? join(homedir(), ".paseo");

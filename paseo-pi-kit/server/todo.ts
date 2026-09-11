@@ -1,7 +1,7 @@
-import type { PluginHandlerContext } from "@getpaseo/plugin";
+import type { PluginHandlerContext } from "@getpaseo/plugin/server";
 import type { output as ZodOutput } from "zod";
-import { latestTodoRpc } from "../domain/contracts.shared";
-import { parseTodoTimelineItem } from "../domain/todo-parser.shared";
+import { latestTodoRpc } from "../shared/contracts";
+import { parseTodoTimelineItem } from "../shared/todo-parser";
 
 export async function getLatestTodo(
   { agentId }: ZodOutput<typeof latestTodoRpc.input>,

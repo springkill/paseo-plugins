@@ -3,8 +3,8 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import type { PluginHandlerContext } from "@getpaseo/plugin";
-import { listSubagentCalls } from "../server/subagents.server";
+import type { PluginHandlerContext } from "@getpaseo/plugin/server";
+import { listSubagentCalls } from "../server/subagents";
 
 function line(message: unknown, timestamp: string) {
   return JSON.stringify({ type: "message", timestamp, message });

@@ -120,23 +120,38 @@ const THEME = {
   },
 };
 
-async function loadBundle() {
+/** 时间线卡片的样本走 transformer，pill 的图标与 popover 直接渲染。 */
+async function renderAll(): Promise<{ ok: number; failures: string[] }> {
   const { compilePlugin } = await import(COMPILER!);
-  const { clientBundle } = (await compilePlugin(join(import.meta.dirname, "..", "index.ts"))) as { clientBundle: string };
-  const require_ = createRequire(join(import.meta.dirname, "..", "package.json"));
+  // ⭐ 0.8 起是两个入口：compilePlugin({ client, server })
+  const root = join(import.meta.dirname, "..");
+  const { clientBundle } = (await compilePlugin({
+    client: join(root, "index.client.tsx"),
+    server: join(root, "index.server.ts"),
+  })) as { clientBundle: string };
+  const require_ = createRequire(join(root, "package.json"));
 
   // ⭐ 图元桩成**字符串**宿主组件，不是返回 null 的函数 —— 见文件头
-  const HOSTS = ["View", "Text", "Pressable", "ScrollView", "ActivityIndicator", "Image", "TextInput"];
-  const reactNative: Record<string, unknown> = Object.fromEntries(HOSTS.map((name) => [name, name]));
-  reactNative.StyleSheet = { create: (s: unknown) => s, flatten: (s: unknown) => s };
-  reactNative.Platform = { OS: "android", select: (o: Record<string, unknown>) => o.android ?? o.default };
-  reactNative.NativeModules = {};
+  const HOSTS = ["View", "Text", "Pressable", "ScrollView", "ActivityIndicator", "Image", "TextInput", "FlatList", "TouchableOpacity"];
+  const base: Record<string, unknown> = Object.fromEntries(HOSTS.map((name) => [name, name]));
+  base.StyleSheet = { create: (style: unknown) => style, flatten: (style: unknown) => style };
+  base.Platform = { OS: "android", select: (o: Record<string, unknown>) => o.android ?? o.default };
+  base.NativeModules = {};
+  const reactNative = new Proxy(base, {
+    get: (target, key) => (key in target ? target[key as string] : typeof key === "string" ? key : undefined),
+    has: () => true,
+  });
 
   const resolve = (id: string): unknown => {
     if (id === "react-native") return reactNative;
-    if (id === "@getpaseo/plugin/react-native") {
-      // 宿主给的是 pluginReactNativeRuntime = { Icon, Modal, useToast }；
-      // Modal 带 .Content 子组件（见 paseo-plugin.d.ts 的 ModalComponent）
+    if (id === "@getpaseo/plugin/client") {
+      // 0.8 把 hooks 挪到了 /client
+      return {
+        useRpc: () => async () => ({}), useAgent: () => undefined,
+        useWorkspace: () => undefined, usePaseo: () => ({}), useSettings: () => ({}),
+      };
+    }
+    if (id === "@getpaseo/plugin/client/react-native") {
       const Modal = Object.assign((props: { children?: unknown }) => props?.children ?? null, {
         Content: (props: { children?: unknown }) => props?.children ?? null,
       });
@@ -147,72 +162,58 @@ async function loadBundle() {
       useMutation: () => ({ mutate: () => {}, isPending: false }),
       useQueryClient: () => ({ setQueryData: () => {}, invalidateQueries: async () => {} }),
     };
-    if (id === "@getpaseo/plugin") {
-      // ⭐ 必须照抄**宿主**那张表，不是 npm 包的导出。
-      // 宿主 web-ui 里是：
-      //   { defineAttachmentSource, defineRpc, Icon, usePaseo, useAgent, useWorkspace, useRpc }
-      // ⚠️ `Icon` 只在宿主注入里有，npm 包本身不导出它 —— 照 npm 包桩的话，
-      // 每个从这里取 Icon 的界面都会误报 `Element type is invalid`。
-      return {
-        ...(require_(id) as Record<string, unknown>),
-        Icon: "Icon",
-        useRpc: () => async () => ({}), useAgent: () => undefined,
-        useWorkspace: () => undefined, usePaseo: () => ({}),
-      };
-    }
+    // 0.8 的核心只剩 defineRpc / defineSettings / 契约类型
     try { return require_(id); } catch { return new Proxy({}, { get: () => () => null }); }
   };
 
   const transformers: Array<{ id: string; transform: (input: unknown) => { items?: Array<{ kind: string }> } | undefined }> = [];
   const renderers = new Map<string, { Component: unknown }>();
-  // ⭐ 面板和 composer pill 也要收 —— 它们同样会被宿主渲染，同样会
-  // 「Plugin failed」。只验时间线卡片是不够的（实测漏过一次）。
+  // ⭐ pill 的 icon 与 popover Content 都是组件，两个都要渲染一遍。
+  // 只验时间线卡片是不够的 —— 实测漏过一次。
   const surfaces: Array<{ id: string; Component: unknown }> = [];
-  const cleanups: Array<() => void> = [];
-  const plugin = {
-    handle: () => {},
-    addTimelineTransformer: (c: never) => transformers.push(c),
-    addTimelineRenderer: (c: { kind: string; Component: unknown }) => renderers.set(c.kind, c),
-    addWorkspacePanel: (c: { id: string; Component: unknown }) => surfaces.push({ id: `panel:${c.id}`, Component: c.Component }),
-    addCommandCenterItem: () => {},
-    addClientSide: (fn: (client: unknown) => (() => void) | undefined) => {
-      const client = {
-        rpc: async () => ({}),
-        openPanel: () => {},
-        addComposerPill: (c: { id: string; Component: unknown }) => {
-          surfaces.push({ id: `pill:${c.id}`, Component: c.Component });
-          return () => {};
-        },
-        paseo: {
-          agents: {
-            subscribe: (cb: (u: unknown) => void) => {
-              cb({ kind: "upsert", agent: { id: "a1", workspaceId: "w1", provider: "pi" } });
-              return () => {};
-            },
-            list: async () => ({ entries: [{ agent: { id: "a1", workspaceId: "w1", provider: "pi" } }] }),
-          },
-        },
-      };
-      const cleanup = fn(client);
-      if (cleanup) cleanups.push(cleanup);
+  const noop = () => {};
+  const client = {
+    addTimelineTransformer: (c: never) => { transformers.push(c); return noop; },
+    addTimelineRenderer: (c: { kind: string; Component: unknown }) => { renderers.set(c.kind, c); return noop; },
+    addWorkspacePanel: () => noop, addCommandCenterItem: () => noop,
+    addSurface: () => noop, addSidebarItem: () => noop, addAttachmentSource: () => noop,
+    addTheme: () => noop, addSettingsScreen: () => noop, addSlashCommand: () => noop,
+    addHeaderButton: () => ({ update: noop, remove: noop }),
+    addComposerPill: (c: { id: string; button: { icon: unknown; behavior: { Content?: unknown } } }) => {
+      surfaces.push({ id: `pill-icon:${c.id}`, Component: c.button.icon });
+      surfaces.push({ id: `pill-popover:${c.id}`, Component: c.button.behavior.Content });
+      return { update: noop, remove: noop };
     },
-    addSurface: () => {}, addSidebarItem: () => {}, addAttachmentSource: () => {}, addTheme: () => {},
+    openPanel: noop, openSurface: noop, openSettings: noop,
+    rpc: async () => ({}),
+    paseo: {
+      agents: {
+        subscribe: (cb: (u: unknown) => void) => {
+          cb({ kind: "upsert", agent: { id: "a1", workspaceId: "w1", provider: "pi" } });
+          return noop;
+        },
+        list: async () => ({ entries: [{ agent: { id: "a1", workspaceId: "w1", provider: "pi" } }] }),
+      },
+    },
   };
+
   // eslint-disable-next-line no-eval -- 就是要按宿主的方式执行它
   const factory = eval(clientBundle) as unknown;
   const exports = typeof factory === "function"
     ? (factory as (r: typeof resolve) => Record<string, unknown>)(resolve)
     : (factory as Record<string, unknown>);
-  const contribute = (exports.default ?? exports) as (p: typeof plugin) => unknown;
-  contribute(plugin);
-  return { transformers, renderers, surfaces, cleanups };
-}
+  const cleanup = ((exports.default ?? exports) as (c: typeof client) => (() => void) | undefined)(client);
+  await new Promise((done) => setTimeout(done, 30));
 
-/** 把所有样本过一遍 transformer + renderer，返回失败清单。 */
-async function renderAll(): Promise<{ ok: number; failures: string[] }> {
-  const { transformers, renderers, surfaces, cleanups } = await loadBundle();
+  const HOST_PROPS = {
+    theme: THEME,
+    host: { id: "pi-kit", label: "Pi Kit" },
+    layout: { compact: false, platform: "android" },
+  };
+
   const failures: string[] = [];
   let ok = 0;
+
   for (const fixture of NOTICE_FIXTURES) {
     const item = { type: "assistant_message", text: fixture.content };
     for (const transformer of transformers) {
@@ -229,7 +230,7 @@ async function renderAll(): Promise<{ ok: number; failures: string[] }> {
         const trail: string[] = [];
         try {
           walk(React.createElement(renderer.Component as never, {
-            item: entry, theme: THEME, host: { id: "pi-kit" }, layout: { compact: false }, agentId: "a1",
+            ...HOST_PROPS, item: entry, context: "agent", agentId: "a1", workspaceId: "w1",
           } as never), trail);
           ok++;
         } catch (error) {
@@ -238,20 +239,21 @@ async function renderAll(): Promise<{ ok: number; failures: string[] }> {
       }
     }
   }
-  // ⭐ 面板与 composer pill：注册时 Component 是函数不代表渲染得出来。
-  // 实测踩过 `Element type is invalid … but got: undefined` —— 那是渲染期才炸的。
+
   for (const surface of surfaces) {
     const trail: string[] = [];
     try {
       walk(React.createElement(surface.Component as never, {
-        theme: THEME, host: { id: "pi-kit" }, layout: { compact: false }, agentId: "a1", workspaceId: "w1",
+        ...HOST_PROPS, context: "agent", agentId: "a1", workspaceId: "w1",
+        size: 14, color: "#aaa", close: () => {},
       } as never), trail);
       ok++;
     } catch (error) {
       failures.push(`${surface.id}: ${error instanceof Error ? error.message : String(error)}\n    路径 ${trail.join(" › ")}`);
     }
   }
-  for (const cleanup of cleanups) cleanup();
+
+  cleanup?.();
   return { ok, failures };
 }
 
@@ -261,6 +263,7 @@ test("⭐ 所有卡片都渲染得出来", { skip }, async () => {
   const { ok, failures } = await renderAll();
   assert.deepEqual(failures, [], `\n${failures.join("\n")}\n`);
   // 9 条样本 + 3 个面板 + 3 个 pill
+  // 9 条通知样本 + 3 个 pill 图标 + 3 个 popover
   assert.ok(ok >= NOTICE_FIXTURES.length + 6, `只渲染了 ${ok} 个界面`);
 });
 

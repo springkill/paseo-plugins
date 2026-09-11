@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parsePiNoticeText, parsePiNoticeTimelineItem } from "../domain/pi-notice-parser.shared";
+import { parsePiNoticeText, parsePiNoticeTimelineItem } from "../shared/pi-notice-parser";
 
 /**
  * 下面每一段的**结构**都是从真实的 Pi 会话 JSONL 里原样抠出来的（空行、缩进、

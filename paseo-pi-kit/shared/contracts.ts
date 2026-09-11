@@ -1,6 +1,6 @@
-import { defineRpc } from "@getpaseo/plugin/server";
+import { defineRpc } from "@getpaseo/plugin";
 import { z } from "zod";
-import { LOCALES } from "./locale.shared";
+import { LOCALES } from "./locale";
 
 export const LocaleSchema = z.enum(LOCALES);
 

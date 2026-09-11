@@ -28,8 +28,8 @@ import type { PluginTheme } from "@getpaseo/plugin";
 // 具名导入编出来是 `import_react.Component`，没有这层不确定性。
 import { Component, type ComponentType, type ReactNode } from "react";
 import { Text, View } from "react-native";
-import { record } from "./report.client";
-import { RADIUS, SPACE, text } from "./tokens.client";
+import { record } from "./report";
+import { RADIUS, SPACE, text } from "./tokens";
 
 /**
  * ⭐ 版本号要**画进错误消息里**，也要在 clientSide 启动时报一行回 daemon 日志。
@@ -43,7 +43,7 @@ import { RADIUS, SPACE, text } from "./tokens.client";
  *
  * ⚠️ 必须与 package.json 一致 —— tests/portability.test.ts 会对账。
  */
-export const VERSION = "0.7.9";
+export const VERSION = "0.8.0";
 
 type Props = { kind: string; theme: PluginTheme; children: ReactNode };
 type State = { message: string | null; frames: string };

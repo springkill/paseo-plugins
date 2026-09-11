@@ -25,7 +25,7 @@
  */
 
 import type { PluginTheme } from "@getpaseo/plugin";
-import { Icon } from "@getpaseo/plugin/react-native";
+import { Icon } from "@getpaseo/plugin/client/react-native";
 import React from "react";
 import { Pressable, ScrollView, Text, View, type TextStyle } from "react-native";
 

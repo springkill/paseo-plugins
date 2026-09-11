@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parsePiNoticeText } from "../domain/pi-notice-parser.shared";
-import { parseSubagentTimelineItem } from "../domain/subagent-parser.shared";
-import { parseTodoTimelineItem } from "../domain/todo-parser.shared";
+import { parsePiNoticeText } from "../shared/pi-notice-parser";
+import { parseSubagentTimelineItem } from "../shared/subagent-parser";
+import { parseTodoTimelineItem } from "../shared/todo-parser";
 
 /**
  * 复刻宿主对 transform 返回值的 JSON 兼容性校验。

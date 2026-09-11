@@ -1,15 +1,15 @@
 {
   "name": "paseo-pi-kit",
   "private": true,
-  "version": "0.7.9",
+  "version": "0.8.0",
   "description": "Native Paseo timeline cards and Composer status for Pi todo tasks",
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts"
   },
   "devDependencies": {
-    "@getpaseo/client": "^0.7.0",
-    "@getpaseo/plugin": "^0.7.0",
+    "@getpaseo/client": "^0.8.0",
+    "@getpaseo/plugin": "^0.8.0",
     "@tanstack/react-query": "^5.90.11",
     "@types/node": "^24.0.0",
     "@types/react": "~19.2.0",

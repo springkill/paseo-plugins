@@ -53,8 +53,8 @@ runId:string 11 │ ok:boolean 9 │ output:string 9 │ error:string 3
 ### 分层
 
 ```
-domain/structured-view.shared.ts   认形状 → 视图模型（纯函数，无 React / 无主题 / 无文案）
-ui/structured.client.tsx           画视图模型（无判定逻辑）
+shared/structured-view.ts   认形状 → 视图模型（纯函数，无 React / 无主题 / 无文案）
+client/structured.tsx           画视图模型（无判定逻辑）
 ```
 
 这么分是为了**形状识别能脱离渲染单测**。用例在 `tests/structured-view.test.ts`，
@@ -137,7 +137,7 @@ ui/structured.client.tsx           画视图模型（无判定逻辑）
 
 ### 套件
 
-`ui/tokens.client.tsx` 是唯一的视觉定义处：
+`client/tokens.tsx` 是唯一的视觉定义处：
 
 | | |
 |---|---|
@@ -183,7 +183,7 @@ typecheck 绿、69 条测试全绿、本机把 67 条真实通知全渲染一遍
 
 ⭐ **客户端代码里不许出现 `toLocaleString` / `Intl` / `localeCompare`。**
 
-数字和时间一律走 `domain/format.shared.ts`（`formatNumber` / `formatDateTime`）。
+数字和时间一律走 `shared/format.ts`（`formatNumber` / `formatDateTime`）。
 副作用是好的：**输出与语言环境无关**，同一份数据在谁的机器上都长一样，
 用户截图对得上。
 
@@ -195,7 +195,7 @@ typecheck 绿、69 条测试全绿、本机把 67 条真实通知全渲染一遍
 |---|---|---|---|
 | 静态禁令 | `tests/portability.test.ts` | 已知的 Intl 家族 API | ✅ 跑 |
 | 真渲染 | `tests/render.test.ts` | 组件树能不能跑通，**含裁剪运行时** | ⏭️ 跳过（需全局 CLI） |
-| 卡片边界 | `ui/card-boundary.client.tsx` | 线上兜底：把异常画在卡片里 + 回传 daemon 日志 | — |
+| 卡片边界 | `client/card-boundary.tsx` | 线上兜底：把异常画在卡片里 + 回传 daemon 日志 | — |
 
 `render.test.ts` 有两个关键细节，做错就什么都验不到：
 
@@ -237,7 +237,7 @@ platform=web      hermes=false intl=object  numFmt=true
 
 ### 真正的原因
 
-`domain/locale.shared.ts` 的 `makeTranslator` 原来这么写：
+`shared/locale.ts` 的 `makeTranslator` 原来这么写：
 
 ```ts
 for (const [key, entry] of Object.entries(catalog)) {
@@ -297,9 +297,9 @@ TypeError: Object is not a function
 
 | 工具 | 位置 | 作用 |
 |---|---|---|
-| 版本 + 运行时指纹信标 | `index.ts` → `clientFingerprint()` | 设备自报 版本 / platform / hermes / intl |
-| 接管宿主 console | `ui/report.client.ts` → `captureHostPluginLogs()` | 把宿主 `[Plugins]` 日志（含完整调用栈）回传 daemon |
-| 卡片错误边界 | `ui/card-boundary.client.tsx` | 把异常画在卡片里，并回传；坏了也只降级不打垮界面 |
+| 版本 + 运行时指纹信标 | `index.client.tsx` → `clientFingerprint()` | 设备自报 版本 / platform / hermes / intl |
+| 接管宿主 console | `client/report.ts` → `captureHostPluginLogs()` | 把宿主 `[Plugins]` 日志（含完整调用栈）回传 daemon |
+| 卡片错误边界 | `client/card-boundary.tsx` | 把异常画在卡片里，并回传；坏了也只降级不打垮界面 |
 
 ```bash
 grep 'pi-kit report' ~/.paseo/daemon.log
@@ -347,7 +347,7 @@ Mac 正常纯粹因为屏幕够宽 **且** 桌面端是 web 形态。
 
 ### 修法
 
-`ui/open-panel.client.ts` 的 `openPanelPreferExplorer`：先试 explorer，
+`client/pill.tsx` 的 `openPanelPreferExplorer`：先试 explorer，
 抛了就退回默认放置（主区标签页）。手机上有个能看的界面，好过点了没反应。
 
 ⚠️ **`openPanel` 是同步抛出的**（`startPluginClientSide` 里
@@ -365,3 +365,73 @@ Mac 正常纯粹因为屏幕够宽 **且** 桌面端是 web 形态。
 已负向验证。
 
 ⚠️ 这个差异**本机和 web 端都测不出来** —— 只有窄屏原生端会踩到。
+
+---
+
+## 六、迁移到 Paseo 0.8
+
+daemon 升到 0.8 之后插件直接 `failed`：
+
+```
+Plugin "paseo-pi-kit" requires Paseo <0.8.0. Your daemon is 0.8.0.
+This plugin has no requirements.paseo and targets Paseo before 0.8.
+```
+
+### 结构
+
+| 0.7 | 0.8 |
+|---|---|
+| `index.ts` 单入口 | `index.client.tsx` + `index.server.ts` |
+| `domain/*.shared.ts` | `shared/*.ts` |
+| `ui/*.client.tsx` | `client/*.tsx` |
+| `server/*.server.ts` | `server/*.ts` |
+| `@getpaseo/plugin`（hooks） | `@getpaseo/plugin/client` |
+| `@getpaseo/plugin/react-native` | `@getpaseo/plugin/client/react-native` |
+| `defineRpc` from `/server` | from `@getpaseo/plugin`（核心） |
+| `plugin.addClientSide(cb)` | 删除 —— `index.client.tsx` 的函数体就是 `cb` |
+| — | 清单加 `requirements: { paseo: ">=0.8.0" }` |
+
+### 边界机制换了，而且更好
+
+0.7 靠编译器在 `index.ts` 上做**文本删除**（`REGISTRATIONS_REMOVED_BY_TARGET` +
+`collectOppositeTargetImportRanges`）。那套**不检查引用**，踩过两次：
+`readFlags is not defined` 和 cleanup 里的 `closeProviderUsageClient` ——
+都得靠 `typeof X === "function"` 守卫兜着，而且失败时**服务端一切正常**、
+`paseo plugin ls` 照样显示 running。
+
+0.8 改成按目录划：`client/` 只进 app bundle，`server/` 只进 daemon，
+`shared/` 两边都进，其余位置直接编译报错。**编译器自己管住了，守卫全删了。**
+
+旧的 `tests/entrypoint-boundary.test.ts`（复刻整套删除规则）已删，换成便宜的
+`tests/layout.test.ts`（不起编译器就能挡住放错位置的文件）。真正的判据是
+`tests/client-bundle.test.ts` 里的真编译。
+
+### composer pill 改成按钮描述符 + popover
+
+```ts
+client.addComposerPill({
+  id, workspaceId, agentId,
+  button: { title, icon, label?, behavior },
+})  // → { update(patch), remove() }
+```
+
+⭐ **0.8 新增 `behavior: { kind: "popover", Content }`** —— 就是 9 月 4 号问过、
+当时答「做不了」的那种点击就地弹窗。而且它**绕开了 §5 那个宿主限制**：
+explorer 侧栏在窄屏上根本不存在，popover 两端都能用。
+
+所以三个 pill 全部改成 popover，`addWorkspacePanel` 与对应的命令项一并移除
+（没有面板可开了）。
+
+**活标签怎么来**：`label` 是普通字符串，没法在渲染里写「3/7 完成 · 读取配置」。
+做法是让图标组件（它本来就拿着数据）算完往上推
+`registration.update({ label })` —— 只有一个数据源，不会和 pill 各查一遍
+导致对不上。见 `client/pill.tsx`。
+
+### 宿主现在直接告诉你平台
+
+```ts
+layout: { compact: boolean; platform: "ios" | "android" | "web" }
+```
+
+§4 里我自己造的运行时指纹，宿主 0.8 内建了一半。信标仍然保留 ——
+它还报**版本号**，而「设备在跑哪一版 bundle」才是那几轮空转的真正卡点。

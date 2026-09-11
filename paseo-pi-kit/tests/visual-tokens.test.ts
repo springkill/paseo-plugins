@@ -20,9 +20,10 @@ import test from "node:test";
  * 靠肉眼是发现不了的。
  */
 
-const UI = join(import.meta.dirname, "..", "ui");
+// ⭐ 0.8 起客户端代码在 client/（0.7 是 ui/ + `.client.tsx` 后缀）
+const UI = join(import.meta.dirname, "..", "client");
 const FILES = readdirSync(UI)
-  .filter((name) => name.endsWith(".client.tsx") && name !== "tokens.client.tsx")
+  .filter((name) => /\.tsx?$/.test(name) && name !== "tokens.tsx")
   .map((name) => [name, readFileSync(join(UI, name), "utf8")] as const);
 
 test("卡片里不出现字面量字号", () => {
@@ -90,7 +91,7 @@ test("面板一律套 PanelShell", () => {
 });
 
 test("令牌本身是自洽的", () => {
-  const tokens = readFileSync(join(UI, "tokens.client.tsx"), "utf8");
+  const tokens = readFileSync(join(UI, "tokens.tsx"), "utf8");
   // ⚠️ 只在 FONT 那一块里解析 —— LINE / RADIUS / SPACE 也有 body / meta / card
   // 这类同名键，全文匹配会串味（第一版就栽在这里）
   function block(start: string, end: string): Record<string, number> {
@@ -116,52 +117,40 @@ test("令牌本身是自洽的", () => {
 
 // ── 面板打开位置 ────────────────────────────────────────────────────
 
-test("⭐ 打开面板一律走 openPanelPreferExplorer", () => {
+test("⭐ composer pill 用 popover，不再开面板", () => {
   // ═════════════════════════════════════════════════════════════════
-  // 曾经的规矩是「必须显式带 location: \"explorer\"」—— 因为缺省是 \"workspace\"，
-  // 会把面板开成主区的大标签页而不是文件树旁边那个侧边容器。
+  // 0.7 时三个 pill 点开的是 explorer 侧栏面板，而 explorer 在窄屏上
+  // **根本不存在**（宿主：isCompact ? "overlay" : supportsDesktopPaneSplits()
+  // ? "pane" : "dock"，且 supportsDesktopPaneSplits 直接 return isWeb），
+  // 手机上点了只会抛 "Explorer is unavailable"。
   //
-  // 但那条规矩在**手机上是错的**。宿主的 createPluginNavigation：
-  //
-  //   if (location !== "explorer") return;              // 默认放置
-  //   const paneId = showExplorerSidebar(workspaceKey);
-  //   if (!paneId) throw new Error("Explorer is unavailable");
-  //
-  // 而 explorer 有三种形态：isCompact ? "overlay" : supportsDesktopPaneSplits()
-  // ? "pane" : "dock"，且 supportsDesktopPaneSplits() 直接 return isWeb。
-  // 窄屏原生端是 overlay，没有可用的 pane —— 于是同步抛异常，点了没反应。
-  //
-  // ⭐ 现在的规矩：走 openPanelPreferExplorer，先试 explorer，失败退回默认放置。
-  // ⚠️ 这个差异本机和 web 端都测不出来，只有窄屏原生端会踩到。
+  // 0.8 新增 behavior: { kind: "popover", Content }，两端都能用。
+  // 见 docs/card-design.md §5 / §6。
   // ═════════════════════════════════════════════════════════════════
   const sources = [
     ...FILES,
-    ["index.ts", readFileSync(join(UI, "..", "index.ts"), "utf8")] as const,
+    ["index.client.tsx", readFileSync(join(UI, "..", "index.client.tsx"), "utf8")] as const,
   ];
 
-  // 1. 不许再直接写 location: "explorer"
-  const hardcoded = sources
-    .filter(([name]) => name !== "open-panel.client.ts")
-    .flatMap(([name, source]) =>
-      [...source.matchAll(/^(?!\s*(?:\/\/|\*)).*location:\s*"explorer"/gm)].map(
-        (m) => `${name}: ${m[0].trim()}`,
-      ),
-    );
-  assert.deepEqual(hardcoded, [], "改用 openPanelPreferExplorer —— 手机上会抛 Explorer is unavailable");
+  // 1. 不许再出现面板注册与 explorer 放置
+  const legacy = sources.flatMap(([name, source]) =>
+    [...source.matchAll(/^(?!\s*(?:\/\/|\*)).*(addWorkspacePanel|location:\s*"explorer"|openPanel\s*\()/gm)].map(
+      (m) => `${name}: ${m[0].trim()}`,
+    ),
+  );
+  assert.deepEqual(legacy, [], "0.8 起 pill 走 popover；面板在窄屏上开不出来");
 
-  // 2. 直接调 openPanel 的地方必须是 helper 内部
+  // 2. pill 一律经共享注册器（它统一了 popover 行为和 agent 订阅）
   const direct = sources
-    .filter(([name]) => name !== "open-panel.client.ts")
+    .filter(([name]) => name !== "pill.tsx")
     .flatMap(([name, source]) =>
-      [...source.matchAll(/(?<![\w.])(?:client\.)?openPanel\s*\(/g)]
-        .map((m) => `${name}: ${m[0]}`),
+      [...source.matchAll(/addComposerPill\s*\(/g)].map((m) => `${name}: ${m[0]}`),
     );
-  assert.deepEqual(direct, [], "面板开启一律经 openPanelPreferExplorer");
+  assert.deepEqual(direct, [], "改用 client/pill.tsx 的 registerAgentPill");
 
-  // 3. helper 自己必须真的带兜底
-  const helper = readFileSync(join(UI, "open-panel.client.ts"), "utf8");
-  assert.match(helper, /catch/, "helper 必须接住 explorer 不可用");
-  assert.match(helper, /open\(panelId, options\)/, "helper 必须有退回默认放置的那一次调用");
+  // 3. 注册器自己必须真的用 popover
+  const registrar = readFileSync(join(UI, "pill.tsx"), "utf8");
+  assert.match(registrar, /kind:\s*"popover"/, "pill 的 behavior 必须是 popover");
 });
 
 // ── 结构化数据不许退回 JSON 味 ──────────────────────────────────────
@@ -171,7 +160,7 @@ test("⭐ 结构化渲染里不出现花括号 / true / false 字面量", () => 
   // 信息全在，语义全丢 —— 用户的原话是「很明显是个半成品」。
   // ⚠️ 先剥注释 —— 这个文件的注释里就在讲「不要画 {} / [] / JSON.stringify」，
   // 不剥的话这条测试会照着自己的说明书报错（第一版就是这样）。
-  const source = readFileSync(join(UI, "structured.client.tsx"), "utf8")
+  const source = readFileSync(join(UI, "structured.tsx"), "utf8")
     .replace(/\/\*[\s\S]*?\*\//g, "")
     .replace(/^[ \t]*\/\/.*$/gm, "");
   const banned = [

@@ -1,4 +1,15 @@
 {
   "id": "paseo-pi-kit",
-  "build": [["npm", "install", "--no-audit", "--no-fund", "--loglevel=error"]]
+  "requirements": {
+    "paseo": ">=0.8.0"
+  },
+  "build": [
+    [
+      "npm",
+      "install",
+      "--no-audit",
+      "--no-fund",
+      "--loglevel=error"
+    ]
+  ]
 }

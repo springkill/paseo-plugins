@@ -5,14 +5,15 @@
  * 下次渲染也跟着变。
  */
 
-import { type PluginTheme, useRpc } from "@getpaseo/plugin";
+import { type PluginTheme } from "@getpaseo/plugin";
+import { useRpc } from "@getpaseo/plugin/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { NativeModules, Pressable, Text, View } from "react-native";
-import { localeRpc, setLocaleRpc } from "../domain/contracts.shared";
-import { translator, type Translator } from "../domain/i18n.shared";
-import { LOCALE_NATIVE_NAME, LOCALES, type Locale, type LocalePreference } from "../domain/locale.shared";
-import { RADIUS, SPACE, text } from "./tokens.client";
+import { localeRpc, setLocaleRpc } from "../shared/contracts";
+import { translator, type Translator } from "../shared/i18n";
+import { LOCALE_NATIVE_NAME, LOCALES, type Locale, type LocalePreference } from "../shared/locale";
+import { RADIUS, SPACE, text } from "./tokens";
 
 /**
  * 客户端自己是什么语言 —— **对齐 Paseo 自己的取法**。

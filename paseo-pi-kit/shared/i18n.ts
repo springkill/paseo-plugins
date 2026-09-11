@@ -19,7 +19,7 @@
  * 翻译过来反而对不上用户在别处看到的东西。
  */
 
-import { makeTranslator, type Catalog, type Locale, type Translated } from "./locale.shared";
+import { makeTranslator, type Catalog, type Locale, type Translated } from "./locale";
 
 const CATALOG = {
   // ── 入口 ────────────────────────────────────────────────────────

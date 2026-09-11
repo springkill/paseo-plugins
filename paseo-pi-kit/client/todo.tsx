@@ -6,25 +6,22 @@
  * 在同一条时间线上比邻居小一号。
  */
 
+import type { PluginCleanup, PluginTheme } from "@getpaseo/plugin";
 import {
   type PluginClientContext,
-  type PluginAgentPanelProps,
-  type PluginComposerPillProps,
-  type PluginTheme,
   type PluginTimelineItemProps,
   useAgent,
   useRpc,
-} from "@getpaseo/plugin";
-import { Icon } from "@getpaseo/plugin/react-native";
+} from "@getpaseo/plugin/client";
+import { Icon } from "@getpaseo/plugin/client/react-native";
 import { useQuery } from "@tanstack/react-query";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
-import { latestTodoRpc, type TodoBoard, type TodoTask } from "../domain/contracts.shared";
-import { translator, type Translator } from "../domain/i18n.shared";
-import { localeFromTag } from "../domain/locale.shared";
-import { withCardBoundary } from "./card-boundary.client";
-import { openPanelPreferExplorer } from "./open-panel.client";
-import { detectClientLocale, LanguagePicker, useLocale } from "./locale.client";
+import { latestTodoRpc, type TodoBoard, type TodoTask } from "../shared/contracts";
+import { translator, type Translator } from "../shared/i18n";
+import { localeFromTag } from "../shared/locale";
+import { registerAgentPill, type AgentPillContentProps, type AgentPillIconProps, type PushLabel } from "./pill";
+import { detectClientLocale, LanguagePicker, useLocale } from "./locale";
 import {
   CardHeader,
   CardShell,
@@ -40,7 +37,7 @@ import {
   SPACE,
   text,
   type Tone,
-} from "./tokens.client";
+} from "./tokens";
 
 function statusMeta(status: TodoTask["status"], theme: PluginTheme, t: Translator): {
   icon: string;
@@ -179,42 +176,43 @@ function useTodoBoard(agentId: string, hostId: string) {
   });
 }
 
-function TodoStatusPill({ theme, host, agentId }: PluginComposerPillProps) {
-  const { t } = useLocale(host.id);
-  const query = useTodoBoard(agentId, host.id);
-  const board = query.data?.board;
-  const live = board?.tasks.filter((task) => task.status !== "deleted") ?? [];
-  const completed = live.filter((task) => task.status === "completed").length;
-  const active = live.find((task) => task.status === "in_progress");
-  const label = query.isLoading
-    ? t.todo_pill_loading
-    : board
-      ? `${t.todo_progress(completed, live.length)}${active ? ` · ${active.activeForm ?? active.subject}` : ""}`
-      : t.todo_pill_idle;
+/**
+ * pill 的图标。
+ *
+ * ⭐ 它同时负责把**活标签**推上去 —— 0.8 的 `label` 是普通字符串，没法在渲染里
+ * 直接写「3/7 完成 · 读取配置」。图标组件本来就拿着数据，顺手算完推给
+ * `registration.update({ label })`，只有一个数据源，不会对不上。见 client/pill.tsx。
+ */
+function createTodoPillIcon(push: PushLabel) {
+  return function TodoPillIcon({ theme, host, agentId, size, color }: AgentPillIconProps) {
+    const { t } = useLocale(host.id);
+    const query = useTodoBoard(agentId, host.id);
+    const board = query.data?.board;
+    const live = board?.tasks.filter((task) => task.status !== "deleted") ?? [];
+    const completed = live.filter((task) => task.status === "completed").length;
+    const active = live.find((task) => task.status === "in_progress");
+    const label = query.isLoading
+      ? t.todo_pill_loading
+      : board
+        ? `${t.todo_progress(completed, live.length)}${active ? ` · ${active.activeForm ?? active.subject}` : ""}`
+        : t.todo_pill_idle;
 
-  return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: SPACE.tight, flexShrink: 1 }}>
-      {query.isFetching && !board ? (
-        <ActivityIndicator size="small" color={theme.colors.foregroundMuted} />
-      ) : (
-        <Icon name="ListTodo" size={ICON.row} color={active ? theme.colors.accent : theme.colors.foregroundMuted} />
-      )}
-      <Text numberOfLines={1} style={text(theme, "meta", { strong: true, ...(active ? { accent: true } : { muted: true }) })}>
-        {label}
-      </Text>
-    </View>
-  );
+    useEffect(() => { push(label); }, [label]);
+
+    if (query.isFetching && !board) {
+      return <ActivityIndicator size="small" color={theme.colors.foregroundMuted} />;
+    }
+    return <Icon name="ListTodo" size={size} color={active ? theme.colors.accent : color} />;
+  };
 }
 
 /**
- * 任务列表面板。
+ * 点 pill 弹出的任务列表。
  *
- * ⭐ 点 composer pill 打开的就是这个 —— 它跟文件树、git 变更树在同一个
- * explorer 容器里并列（宿主的 panel manifest：`files` / `changes_tree` 都是
- * `hosts: ["explorer"]`，插件面板是 `["main","explorer"]`）。
- * 好处是能一直开着对照看，不像 Modal 那样遮住整个对话。
+ * ⭐ 0.7 时这是个注册到 explorer 侧栏的面板。0.8 改成 popover —— explorer
+ * 在窄屏上根本不存在（见 docs/card-design.md §5），popover 两端都能用。
  */
-export function PiTodoPanel({ theme, host, layout, agentId }: PluginAgentPanelProps) {
+export function TodoPopover({ theme, host, layout, agentId }: AgentPillContentProps) {
   const localeCtx = useLocale(host.id);
   const t = localeCtx.t;
   const query = useTodoBoard(agentId, host.id);
@@ -239,56 +237,16 @@ export function PiTodoPanel({ theme, host, layout, agentId }: PluginAgentPanelPr
   );
 }
 
-export function contributeTodoPills(client: PluginClientContext) {
+export function registerTodoPill(client: PluginClientContext): PluginCleanup {
   // ⚠️ 这里是注册时刻，不是 React 渲染，拿不到 useLocale。
-  // pill 的 title 只是个 tooltip，用客户端自己的语言足够；
-  // 用户真正阅读的面板内容走完整的服务端判定（含共享设置）。
+  // pill 的标题只是兜底文案，用客户端自己的语言足够；
+  // 用户真正阅读的弹出内容走完整的服务端判定（含共享设置）。
   const t = translator(localeFromTag(detectClientLocale()) ?? "en");
-  const pills = new Map<string, { workspaceId: string; remove: () => void }>();
-  let active = true;
-
-  function remove(agentId: string) {
-    pills.get(agentId)?.remove();
-    pills.delete(agentId);
-  }
-
-  function upsert(agent: { id: string; workspaceId?: string; archivedAt?: string | null; provider?: string }) {
-    const isPi = agent.provider === "pi" || agent.provider?.startsWith("pi/") === true;
-    if (!active || !isPi || !agent.workspaceId || agent.archivedAt) {
-      remove(agent.id);
-      return;
-    }
-    const existing = pills.get(agent.id);
-    if (existing?.workspaceId === agent.workspaceId) return;
-    remove(agent.id);
-    const { id: agentId, workspaceId } = agent;
-    pills.set(agentId, {
-      workspaceId,
-      remove: client.addComposerPill({
-        id: "pi-todos",
-        title: t.nav_open_todos,
-        workspaceId,
-        agentId,
-        Component: withCardBoundary("pi-todos-pill", TodoStatusPill),
-        onPress() {
-          // ⚠️ 不能直接写 location: "explorer" —— 手机上 explorer 是 overlay
-          // 形态，没有可用的 pane，宿主会抛 "Explorer is unavailable"，
-          // 点了就什么都不发生。见 ui/open-panel.client.ts。
-          openPanelPreferExplorer(client.openPanel, "pi-todos", { workspaceId, agentId });
-        },
-      }),
-    });
-  }
-
-  const unsubscribe = client.paseo.agents.subscribe((update) => {
-    if (update.kind === "upsert") upsert(update.agent);
-    else remove(update.agentId);
+  return registerAgentPill(client, {
+    id: "pi-todos",
+    title: t.nav_open_todos,
+    piOnly: true,
+    createIcon: createTodoPillIcon,
+    Content: TodoPopover,
   });
-
-  return () => {
-    active = false;
-    unsubscribe();
-    for (const registration of pills.values()) registration.remove();
-    pills.clear();
-  };
 }

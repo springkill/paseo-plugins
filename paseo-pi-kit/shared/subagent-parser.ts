@@ -1,4 +1,4 @@
-import { SubagentCallSchema, type SubagentCall } from "./contracts.shared";
+import { SubagentCallSchema, type SubagentCall } from "./contracts";
 
 function record(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === "object" && !Array.isArray(value)

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildStructuredView, humanizeKey, type ViewNode } from "../domain/structured-view.shared";
+import { buildStructuredView, humanizeKey, type ViewNode } from "../shared/structured-view";
 
 /**
  * 结构化数据的形状识别。

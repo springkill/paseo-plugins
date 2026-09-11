@@ -25,15 +25,16 @@
  * 交给 `ui/structured.client.tsx` —— 那边先认形状再画，不是画 JSON 树。
  */
 
-import { type PluginTheme, type PluginTimelineItemProps } from "@getpaseo/plugin";
-import { Icon } from "@getpaseo/plugin/react-native";
+import { type PluginTheme } from "@getpaseo/plugin";
+import { type PluginTimelineItemProps } from "@getpaseo/plugin/client";
+import { Icon } from "@getpaseo/plugin/client/react-native";
 import React, { useMemo, useState } from "react";
 import { Text, View } from "react-native";
-import type { PiChildOutput, PiCompletionEntry, PiNotice } from "../domain/contracts.shared";
-import type { Translator } from "../domain/i18n.shared";
-import { buildStructuredView } from "../domain/structured-view.shared";
-import { useLocale } from "./locale.client";
-import { StructuredBlock } from "./structured.client";
+import type { PiChildOutput, PiCompletionEntry, PiNotice } from "../shared/contracts";
+import type { Translator } from "../shared/i18n";
+import { buildStructuredView } from "../shared/structured-view";
+import { useLocale } from "./locale";
+import { StructuredBlock } from "./structured";
 import {
   CardHeader,
   CardShell,
@@ -49,7 +50,7 @@ import {
   SectionTitle,
   text,
   type Tone,
-} from "./tokens.client";
+} from "./tokens";
 
 /** 正文超过这个长度就折起来 —— 子任务输出动辄几千字。 */
 const COLLAPSE_OVER = 320;

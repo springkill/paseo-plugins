@@ -1,49 +1,60 @@
-# Layout conventions
-
-*[中文](STRUCTURE.zh-CN.md)*
-
-Every plugin here uses the same layers, matching
-[paseo-rumen](https://github.com/springkill/paseo-rumen):
+# 插件结构（Paseo 0.8）
 
 ```
-index.ts       plugin registration
-domain/        pure logic, no IO, shared by both ends (.shared.ts)
-server/        plugin subprocess (.server.ts, may use node:*)
-ui/            inside the Paseo app (.client.tsx)
-tests/         *.test.ts
+index.client.tsx   客户端入口 —— 时间线卡片、composer pill
+index.server.ts    服务端入口 —— RPC 处理
+client/            只进 app bundle（浏览器 / iOS / 安卓 Hermes）
+server/            只进 daemon bundle（Node，可用 node:*）
+shared/            两边都进：纯逻辑、契约、文案表
+tests/
+docs/
 ```
 
-## ⚠️ The suffix is load-bearing; the directory is not
+## 边界由编译器强制
 
-Paseo's compiler splits the client and server bundles **by filename suffix**:
+0.8 按**目录**划边界，不再看文件名后缀：
 
 ```js
-onResolve({ filter: /\.(?:client|server)(?:\.[cm]?[jt]sx?)?$/ }, ...)
+directoryTarget(file):
+  client/ → client      server/ → server      shared/ → 两边
+  index.client.tsx / index.server.ts → 各自入口
+  其余一律 "invalid" → 编译报错
 ```
 
-Directories are for humans. Rename `foo.server.ts` to `foo.ts` and its `node:fs`
-imports land in the client bundle.
-
-## The entry point is filtered as text
-
-`index.ts` gets special treatment (`filterEntrypoint()` in the compiler):
-imports for the opposite target are **deleted line by line**, and so are the
-registration calls that target does not want — `handle` for the client bundle,
-every `add*` for the server one.
-
-So a `.server` value may only be referenced **inside `plugin.handle(...)`**, and
-a `.client` value only inside those `add*` calls. Anywhere else — a bare
-statement, a condition, a callback body the compiler keeps — leaves an
-identifier with no definition in the other bundle, and it throws at runtime.
-
-⚠️ The build does not catch this: the boundary check never sees the import,
-because it was already removed at the text stage.
-
-## Dependency direction
+把 `server/foo.ts` 引进客户端代码会直接编译失败：
 
 ```
-ui/  ──▶  domain/  ◀──  server/
+server-only module cannot be imported into the plugin client bundle: …
 ```
 
-`domain/` imports nothing from `ui/` or `server/`. That is what keeps it testable
-without a host, and what lets both bundles share it.
+⚠️ **0.7 不是这样的**，它靠在 `index.ts` 上做文本删除
+（`REGISTRATIONS_REMOVED_BY_TARGET`）。那套**不检查引用**，踩过两次
+（`readFlags is not defined`、cleanup 里的 `closeProviderUsageClient`），
+只能靠 `typeof X === "function"` 守卫兜，而且失败时服务端一切正常、
+`paseo plugin ls` 照样 running。**0.8 之后这些守卫都可以删。**
+
+## 依赖方向
+
+```
+client/  ──▶  shared/  ◀──  server/
+```
+
+`shared/` 不引 `client/` 也不引 `server/`。这是它能脱离宿主单测的原因。
+
+## SDK 子路径
+
+| 用途 | 从哪引 |
+|---|---|
+| `defineRpc` / `defineSettings` / 契约类型 | `@getpaseo/plugin` |
+| hooks（`useRpc` / `useAgent` / `useWorkspace`）与客户端类型 | `@getpaseo/plugin/client` |
+| `Icon` / `Modal` / `useToast` | `@getpaseo/plugin/client/react-native` |
+| 设置界面组件 | `@getpaseo/plugin/client/ui` |
+| `PluginServerContext` / 生命周期类型 | `@getpaseo/plugin/server` |
+
+## 清单
+
+```json
+{ "id": "…", "requirements": { "paseo": ">=0.8.0" } }
+```
+
+不声明 `requirements.paseo` 的话，0.8 直接按「targets pre-0.8」拒绝加载。

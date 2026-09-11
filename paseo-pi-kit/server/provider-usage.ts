@@ -1,7 +1,7 @@
 import { DaemonClient } from "@getpaseo/client/internal/daemon-client";
-import { daemonUrl } from "./daemon.server";
+import { daemonUrl } from "./daemon";
 import type { output as ZodOutput } from "zod";
-import { providerUsageRpc } from "../domain/contracts.shared";
+import { providerUsageRpc } from "../shared/contracts";
 
 let daemonClient: DaemonClient | null = null;
 let connecting: Promise<DaemonClient> | null = null;
