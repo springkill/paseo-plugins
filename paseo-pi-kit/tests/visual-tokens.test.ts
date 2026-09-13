@@ -81,13 +81,13 @@ test("色调映射只有一处实现", () => {
   assert.deepEqual(offenders, [], "改用 tokens.client.tsx 的 toneColor —— 曾经有一份把 warning 映射成灰色");
 });
 
-test("⭐ popover 内容一律套 PopoverShell", () => {
+test("⭐ popover / 面板内容一律套 ContentShell", () => {
   // 三个面板曾经三种头部：一个没有标题、一个有标题、一个有标题带刷新按钮，
   // 内边距还各写各的（10 / 12 / 14 / 18）。
   const offenders = FILES.filter(([, source]) => /export function \w*Popover\b/.test(source))
-    .filter(([, source]) => !source.includes("PopoverShell") && !source.includes("ProviderBalancesCard"))
+    .filter(([, source]) => !source.includes("ContentShell") && !source.includes("ProviderBalancesCard"))
     .map(([name]) => name);
-  assert.deepEqual(offenders, [], "popover 内容用 <PopoverShell>，别自己拼头部");
+  assert.deepEqual(offenders, [], "内容用 <ContentShell kind=…>，别自己拼头部");
 });
 
 test("⭐ popover 里不许再套滚动与固定高度", () => {
@@ -103,11 +103,13 @@ test("⭐ popover 里不许再套滚动与固定高度", () => {
   // 再套一层就是：边框套边框、内边距翻倍、双层滚动手势打架、
   // flex:1 在不定高容器里塌掉。
   // ═════════════════════════════════════════════════════════════════
+  // ⚠️ 只有 ContentShell 的 **panel** 分支可以用 ScrollView（面板是裸容器，
+  // 要自己滚）。popover 分支绝不能 —— 宿主已经 scrollable，双层手势会打架。
   const offenders: string[] = [];
   for (const [name, source] of FILES) {
     const stripped = source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^[ \t]*\/\/.*$/gm, "");
-    if (/\bScrollView\b/.test(stripped)) offenders.push(`${name}: ScrollView —— 宿主已 scrollable`);
-    if (/height:\s*\d/.test(stripped)) offenders.push(`${name}: 固定高度 —— 宿主按内容撑开，maxHeight 封顶`);
+    if (/\bScrollView\b/.test(stripped)) offenders.push(`${name}: ScrollView 只允许出现在 tokens.tsx 的 panel 分支`);
+    if (/height:\s*\d/.test(stripped)) offenders.push(`${name}: 固定高度 —— popover 按内容撑开，maxHeight 封顶`);
   }
   assert.deepEqual(offenders, []);
 });
@@ -154,40 +156,52 @@ test("令牌本身是自洽的", () => {
 
 // ── 面板打开位置 ────────────────────────────────────────────────────
 
-test("⭐ composer pill 用 popover，不再开面板", () => {
+test("⭐ pill 走 popover；面板只能经 openPanelPreferExplorer 打开", () => {
   // ═════════════════════════════════════════════════════════════════
-  // 0.7 时三个 pill 点开的是 explorer 侧栏面板，而 explorer 在窄屏上
-  // **根本不存在**（宿主：isCompact ? "overlay" : supportsDesktopPaneSplits()
-  // ? "pane" : "dock"，且 supportsDesktopPaneSplits 直接 return isWeb），
-  // 手机上点了只会抛 "Explorer is unavailable"。
+  // 两条入口并存，各有各的适用面：
   //
-  // 0.8 新增 behavior: { kind: "popover", Content }，两端都能用。
-  // 见 docs/card-design.md §5 / §6。
+  //   composer pill → popover      两端都可用
+  //   命令面板      → 工作区面板    **只有桌面 web 才可能落到 explorer 侧栏**
+  //
+  // 宿主：isCompact ? "overlay" : supportsDesktopPaneSplits() ? "pane" : "dock"，
+  // 而 supportsDesktopPaneSplits() 直接 return isWeb。原生端拿不到侧栏，
+  // 所以 openPanel 必须带退回默认放置的兜底，否则同步抛
+  // "Explorer is unavailable"，点了没反应。见 docs/card-design.md §5。
   // ═════════════════════════════════════════════════════════════════
   const sources = [
     ...FILES,
     ["index.client.tsx", readFileSync(join(UI, "..", "index.client.tsx"), "utf8")] as const,
   ];
 
-  // 1. 不许再出现面板注册与 explorer 放置
-  const legacy = sources.flatMap(([name, source]) =>
-    [...source.matchAll(/^(?!\s*(?:\/\/|\*)).*(addWorkspacePanel|location:\s*"explorer"|openPanel\s*\()/gm)].map(
-      (m) => `${name}: ${m[0].trim()}`,
-    ),
-  );
-  assert.deepEqual(legacy, [], "0.8 起 pill 走 popover；面板在窄屏上开不出来");
+  // 1. 不许硬写 location: "explorer"
+  const hardcoded = sources
+    .filter(([name]) => name !== "open-panel.ts")
+    .flatMap(([name, source]) =>
+      [...source.matchAll(/^(?!\s*(?:\/\/|\*)).*location:\s*"explorer"/gm)].map((m) => `${name}: ${m[0].trim()}`),
+    );
+  assert.deepEqual(hardcoded, [], "改用 openPanelPreferExplorer —— 原生端会抛 Explorer is unavailable");
 
-  // 2. pill 一律经共享注册器（它统一了 popover 行为和 agent 订阅）
+  // 2. 直接调 openPanel 的地方必须是 helper 内部
   const direct = sources
+    .filter(([name]) => name !== "open-panel.ts")
+    .flatMap(([name, source]) =>
+      [...source.matchAll(/(?<![\w.])(?:client\.)?openPanel\s*\(/g)].map((m) => `${name}: ${m[0]}`),
+    );
+  assert.deepEqual(direct, [], "面板开启一律经 openPanelPreferExplorer");
+
+  // 3. helper 自己必须真的有兜底那次调用
+  const helper = readFileSync(join(UI, "open-panel.ts"), "utf8");
+  assert.match(helper, /catch/, "helper 必须接住 explorer 不可用");
+  assert.match(helper, /open\(panelId, options\)/, "helper 必须有退回默认放置的那一次调用");
+
+  // 4. pill 一律经共享注册器，且注册器用 popover
+  const viaRegistrar = sources
     .filter(([name]) => name !== "pill.tsx")
     .flatMap(([name, source]) =>
       [...source.matchAll(/addComposerPill\s*\(/g)].map((m) => `${name}: ${m[0]}`),
     );
-  assert.deepEqual(direct, [], "改用 client/pill.tsx 的 registerAgentPill");
-
-  // 3. 注册器自己必须真的用 popover
-  const registrar = readFileSync(join(UI, "pill.tsx"), "utf8");
-  assert.match(registrar, /kind:\s*"popover"/, "pill 的 behavior 必须是 popover");
+  assert.deepEqual(viaRegistrar, [], "改用 client/pill.tsx 的 registerAgentPill");
+  assert.match(readFileSync(join(UI, "pill.tsx"), "utf8"), /kind:\s*"popover"/, "pill 的 behavior 必须是 popover");
 });
 
 // ── 结构化数据不许退回 JSON 味 ──────────────────────────────────────

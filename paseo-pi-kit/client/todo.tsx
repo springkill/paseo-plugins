@@ -8,6 +8,7 @@
 
 import type { PluginCleanup, PluginTheme } from "@getpaseo/plugin";
 import {
+  type PluginAgentPanelProps,
   type PluginClientContext,
   type PluginTimelineItemProps,
   useAgent,
@@ -31,7 +32,7 @@ import {
   ExpandToggle,
   ICON,
   MetaRow,
-  PopoverShell,
+  ContentShell,
   useSurfaceKind,
   ProgressBar,
   RowShell,
@@ -218,7 +219,7 @@ function createTodoPillIcon(push: PushLabel) {
  * ⭐ 0.7 时这是个注册到 explorer 侧栏的面板。0.8 改成 popover —— explorer
  * 在窄屏上根本不存在（见 docs/card-design.md §5），popover 两端都能用。
  */
-export function TodoPopover({ theme, host, layout, agentId }: AgentPillContentProps) {
+function TodoPopoverBody({ theme, host, layout, agentId, shell }: AgentPillContentProps & { shell: "popover" | "panel" }) {
   const localeCtx = useLocale(host.id);
   const t = localeCtx.t;
   const query = useTodoBoard(agentId, host.id);
@@ -227,7 +228,8 @@ export function TodoPopover({ theme, host, layout, agentId }: AgentPillContentPr
   const completed = live.filter((task) => task.status === "completed").length;
 
   return (
-    <PopoverShell
+    <ContentShell
+      kind={shell}
       theme={theme}
       compact={layout.compact}
       title={t.modal_todos}
@@ -240,7 +242,7 @@ export function TodoPopover({ theme, host, layout, agentId }: AgentPillContentPr
       {!query.isLoading && !query.error && !board ? (
         <EmptyState label={t.todo_none_for_agent} theme={theme} />
       ) : null}
-    </PopoverShell>
+    </ContentShell>
   );
 }
 
@@ -256,4 +258,20 @@ export function registerTodoPill(client: PluginClientContext): PluginCleanup {
     createIcon: createTodoPillIcon,
     Content: TodoPopover,
   });
+}
+
+/**
+ * 两个出口，同一份内容。
+ *
+ * - `TodoPopover` —— composer pill 点开的 popover（两端都可用）
+ * - `TodoPanel` —— 面板。**只有桌面 web 才可能落到 explorer 侧栏**
+ *   （宿主 `supportsDesktopPaneSplits()` 直接 `return isWeb`）；
+ *   原生端会退回主区标签页。见 client/open-panel.ts。
+ */
+export function TodoPopover(props: AgentPillContentProps) {
+  return <TodoPopoverBody {...props} shell="popover" />;
+}
+
+export function TodoPanel(props: PluginAgentPanelProps) {
+  return <TodoPopoverBody {...props} close={() => {}} shell="panel" />;
 }

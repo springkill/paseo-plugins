@@ -1,5 +1,10 @@
 import type { PluginCleanup } from "@getpaseo/plugin";
-import { type PluginClientContext, useAgent, useRpc } from "@getpaseo/plugin/client";
+import {
+  type PluginAgentPanelProps,
+  type PluginClientContext,
+  useAgent,
+  useRpc,
+} from "@getpaseo/plugin/client";
 // ⚠️ Icon 从 `@getpaseo/plugin/react-native` 取，不从 `@getpaseo/plugin`。
 // 两处宿主都注入了，但**npm 包本身只导出后者** —— 前者是宿主运行时额外塞进去的。
 // 插件里其他文件一律走 /react-native，这里曾经是唯一的例外。
@@ -58,19 +63,41 @@ function createProviderUsagePillIcon(_push: PushLabel) {
 }
 
 /**
- * 点 pill 弹出的 provider 用量。
+ * 两个出口，同一份内容。
  *
- * ⚠️ 这里不再套一层带内边距的 View：`ProviderBalancesCard` 自己就是
- * `PanelShell`，外面再包一层会双份内边距，而且把它的 `flex: 1` 卡死。
+ * - `ProviderUsagePopover` —— composer pill 点开的 popover（两端都可用）
+ * - `ProviderUsagePanel` —— 面板。**只有桌面 web 才可能落到 explorer 侧栏**
+ *   （宿主 `supportsDesktopPaneSplits()` 直接 `return isWeb`）；
+ *   原生端会退回主区标签页。见 client/open-panel.ts。
+ *
+ * ⚠️ 不要在外面再套带内边距的 View：`ProviderBalancesCard` 自己就是
+ * `ContentShell`，外面再包一层会双份内边距，还会卡死它的 `flex: 1`。
  */
+function useProviderUsageProps(agentId: string) {
+  const agent = useAgent(agentId, ({ provider, model }) => ({ provider, model }));
+  return providerForAgent(agent?.provider, agent?.model);
+}
+
 export function ProviderUsagePopover(props: AgentPillContentProps) {
-  const agent = useAgent(props.agentId, ({ provider, model }) => ({ provider, model }));
   return (
     <ProviderBalancesCard
       theme={props.theme}
       host={props.host}
       layout={props.layout}
-      preferredProviderId={providerForAgent(agent?.provider, agent?.model)}
+      preferredProviderId={useProviderUsageProps(props.agentId)}
+      shell="popover"
+    />
+  );
+}
+
+export function ProviderUsagePanel(props: PluginAgentPanelProps) {
+  return (
+    <ProviderBalancesCard
+      theme={props.theme}
+      host={props.host}
+      layout={props.layout}
+      preferredProviderId={useProviderUsageProps(props.agentId)}
+      shell="panel"
     />
   );
 }

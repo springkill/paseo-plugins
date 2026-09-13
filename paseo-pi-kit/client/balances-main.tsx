@@ -30,7 +30,7 @@ import {
   EmptyState,
   ErrorText,
   KeyValue,
-  PopoverShell,
+  ContentShell,
   ProgressBar,
   SPACE,
   text,
@@ -114,8 +114,9 @@ function ProviderCard({ provider, preferred, theme, t }: {
   );
 }
 
-export function ProviderBalancesCard({ theme, host, layout, preferredProviderId }: PluginHostProps & {
+export function ProviderBalancesCard({ theme, host, layout, preferredProviderId, shell }: PluginHostProps & {
   preferredProviderId?: string | null;
+  shell: "popover" | "panel";
 }) {
   const localeCtx = useLocale(host.id);
   const t = localeCtx.t;
@@ -151,7 +152,8 @@ export function ProviderBalancesCard({ theme, host, layout, preferredProviderId 
   }
 
   return (
-    <PopoverShell
+    <ContentShell
+      kind={shell}
       theme={theme}
       compact={layout.compact}
       title={t.usage_modal_title}
@@ -201,6 +203,6 @@ export function ProviderBalancesCard({ theme, host, layout, preferredProviderId 
             : null}
         </View>
       ) : null}
-    </PopoverShell>
+    </ContentShell>
   );
 }

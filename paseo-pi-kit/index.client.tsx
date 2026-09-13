@@ -29,12 +29,16 @@ import {
 import { parsePiNoticeTimelineItem } from "./shared/pi-notice-parser";
 import { parseSubagentTimelineItem } from "./shared/subagent-parser";
 import { parseTodoTimelineItem } from "./shared/todo-parser";
+import { translator } from "./shared/i18n";
+import { localeFromTag } from "./shared/locale";
+import { detectClientLocale } from "./client/locale";
 import { VERSION, withCardBoundary } from "./client/card-boundary";
+import { openPanelPreferExplorer } from "./client/open-panel";
 import { captureHostPluginLogs, clientFingerprint, drain, record } from "./client/report";
 import { PiNoticeTimelineCard } from "./client/pi-notice";
-import { registerSubagentPill, SubagentTimelineCard } from "./client/subagents";
-import { registerTodoPill, TodoTimelineCard } from "./client/todo";
-import { registerProviderUsagePill } from "./client/usage-pill";
+import { registerSubagentPill, SubagentPanel, SubagentTimelineCard } from "./client/subagents";
+import { registerTodoPill, TodoPanel, TodoTimelineCard } from "./client/todo";
+import { ProviderUsagePanel, registerProviderUsagePill } from "./client/usage-pill";
 
 /**
  * ⭐⭐ 必须先把 `undefined` 的键清掉，否则整条通知会静默退回裸文本。
@@ -84,6 +88,42 @@ export default function contribute(client: PluginClientContext) {
   }, 3000);
 
   const cleanups: Array<() => void> = [];
+
+  // ⚠️ 注册时刻不是 React 渲染，拿不到 useLocale。面板标题与命令项名用客户端
+  // 自己的语言就够；用户真正阅读的内容走完整的服务端判定（含共享设置）。
+  const t = translator(localeFromTag(detectClientLocale()) ?? "en");
+
+  /**
+   * 面板 + 命令入口。
+   *
+   * ⭐ **面板只有桌面 web 才可能落到 explorer 侧栏** —— 宿主的
+   * `supportsDesktopPaneSplits()` 直接 `return isWeb`，而且手机还额外是
+   * `isCompact`，两条都不满足 "pane"。原生端 `openPanelPreferExplorer`
+   * 会退回主区标签页（至少能一直留着切回来）。见 docs/card-design.md §5。
+   *
+   * pill 的 popover 两端都可用，所以两条入口并存：桌面要侧栏就走命令面板，
+   * 手机随手看就点 pill。
+   */
+  function addPanel(id: string, title: string, icon: string, keywords: string[], Component: Parameters<typeof client.addWorkspacePanel>[0]["Component"]) {
+    cleanups.push(client.addWorkspacePanel({
+      id,
+      title,
+      icon,
+      context: "agent",
+      locations: ["workspace", "explorer"],
+      Component: withCardBoundary(id, Component as never) as never,
+    }));
+    cleanups.push(client.addCommandCenterItem({
+      id: `open-${id}`,
+      title,
+      icon,
+      keywords,
+      context: "agent",
+      onSelect({ openPanel }) {
+        openPanelPreferExplorer(openPanel, id, {});
+      },
+    }));
+  }
 
   // ── 任务列表 ─────────────────────────────────────────────────────
   // Pi 的 todo 工具调用
@@ -160,6 +200,11 @@ export default function contribute(client: PluginClientContext) {
   cleanups.push(registerTodoPill(client));
   cleanups.push(registerSubagentPill(client));
   cleanups.push(registerProviderUsagePill(client));
+
+  // ── 面板（桌面 explorer 侧栏 / 原生退回主区标签页）──────────────
+  addPanel("pi-todos", t.modal_todos, "ListTodo", ["pi", "todo", "tasks", "任务"], TodoPanel);
+  addPanel("pi-subagents", t.panel_subagents, "Network", ["pi", "children", "workflow", "agents"], SubagentPanel);
+  addPanel("pi-usage", t.usage_modal_title, "Gauge", ["provider", "usage", "balance", "quota", "用量", "余额"], ProviderUsagePanel);
 
   return () => {
     clearInterval(timer);

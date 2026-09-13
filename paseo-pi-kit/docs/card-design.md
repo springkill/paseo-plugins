@@ -500,3 +500,63 @@ layout: { compact: boolean; platform: "ios" | "android" | "web" }
 2. 客户端不许出现 `ScrollView` 或固定 `height:`（宿主已 scrollable、按内容撑开）
 3. `useSurfaceKind() === "popover"` 分支里不许出现 `borderWidth:`
    （`borderLeftWidth` 表达强调是可以的）
+
+---
+
+## 八、两条入口并存：pill popover + 面板
+
+§6 迁移到 0.8 时把面板全删了，只留 popover。后来发现**桌面上还是想要侧栏**
+（能一直开着对照看），于是两条入口并存。
+
+### 各自的适用面
+
+| | composer pill → popover | 命令面板 → 工作区面板 |
+|---|---|---|
+| 桌面 web | ✅ | ✅ **落到 explorer 侧栏** |
+| 原生 app（iOS / 安卓） | ✅ | ⚠️ 退回主区标签页 |
+| 宽度 | 280–420 | 跟随容器 |
+| 常驻 | 点开即关 | 可以一直留着 |
+
+⚠️ **explorer 侧栏在原生端拿不到，这是宿主的硬限制：**
+
+```js
+explorer = isCompact ? "overlay" : supportsDesktopPaneSplits() ? "pane" : "dock"
+supportsDesktopPaneSplits = () => isWeb        // 0.7 / 0.8 都是这句
+```
+
+原生 app 的 `isWeb === false`，手机还额外是 `isCompact` —— 两条都不满足
+`"pane"`，`showExplorerSidebar()` 返回 `null`，`openPanel(location:"explorer")`
+**同步抛** `"Explorer is unavailable"`。所以必须走 `openPanelPreferExplorer`
+的兜底，否则点了没反应。
+
+`PluginPanelLocation` 只有 `"workspace" | "explorer"` 两种，没有第三种侧栏。
+
+### 同一份内容，两个出口
+
+```
+TodoPopoverBody ─┬─ TodoPopover(shell="popover")   → pill
+                 └─ TodoPanel(shell="panel")       → 命令面板
+```
+
+`ContentShell` 按 `kind` 分两套 chrome：
+
+| | `kind="popover"` | `kind="panel"` |
+|---|---|---|
+| 内边距 | **无**（宿主给 `spacing[3]`） | 自己给 `SPACE.card` |
+| 滚动 | **无**（宿主 `scrollable`） | 自己套 `ScrollView` |
+| `flex` | **无**（宿主按内容撑开） | `flex: 1` |
+| 标题 | 仅 `!compact`（窄屏 sheet 宿主已显示） | 总是画 |
+| 卡片样式 | 无边框，底色分层 | 描边 + `surface1`（走 `"timeline"` 那套） |
+
+### 守住
+
+`tests/visual-tokens.test.ts`：
+
+- `ScrollView` 只允许出现在 `tokens.tsx` 的 panel 分支
+- 不许硬写 `location: "explorer"`，一律经 `openPanelPreferExplorer`
+- 不许直接调 `openPanel(`
+- pill 一律经 `registerAgentPill`，且 behavior 必须是 popover
+
+`tests/client-bundle.test.ts` 断言三个面板都注册且 `locations` 含 `explorer`；
+`tests/render.test.ts` 把 **pill 图标、popover、面板三种出口都渲染一遍**
+（同一份内容走的是 `ContentShell` 的不同分支，只验一边会漏）。

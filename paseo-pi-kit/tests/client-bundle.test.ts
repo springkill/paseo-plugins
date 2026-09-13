@@ -93,7 +93,13 @@ test("⭐ client bundle 能 evaluate，且注册了全部贡献", { skip: COMPIL
       seen.renderers.push(c.kind);
       return noop;
     },
-    addWorkspacePanel: (c: { id: string }) => { seen.panels.push(c.id); return noop; },
+    addWorkspacePanel: (c: { id: string; Component: unknown; locations?: readonly string[] }) => {
+      assert.equal(typeof c.Component, "function", `panel ${c.id} 的 Component 必须是组件`);
+      // 少了 explorer，桌面上就回不到侧栏那个位置
+      assert.ok(c.locations?.includes("explorer"), `panel ${c.id} 应当支持 explorer`);
+      seen.panels.push(c.id);
+      return noop;
+    },
     addCommandCenterItem: (c: { id: string }) => { seen.commands.push(c.id); return noop; },
     addComposerPill: (c: { id: string; agentId: string; button: Record<string, unknown> }) => {
       const behavior = c.button.behavior as { kind?: string; Content?: unknown } | undefined;
@@ -137,9 +143,10 @@ test("⭐ client bundle 能 evaluate，且注册了全部贡献", { skip: COMPIL
   ], "四个 transformer 少一个都意味着对应的卡片会退回裸文本");
   assert.deepEqual(seen.renderers.toSorted(), ["pi-notice", "pi-subagent-card", "pi-todo-board"]);
   assert.deepEqual(seen.pills.toSorted(), ["pi-subagents", "pi-todos", "provider-usage"]);
-  // ⭐ 0.8 起不再注册面板与命令项 —— explorer 侧栏在窄屏上开不出来
-  assert.deepEqual(seen.panels, [], "面板已改成 popover");
-  assert.deepEqual(seen.commands, [], "命令项没有面板可开，已移除");
+  // ⭐ 两条入口并存：pill 走 popover（两端可用），面板走命令项
+  // （**只有桌面 web 才可能落到 explorer 侧栏**，原生端退回主区标签页）。
+  assert.deepEqual(seen.panels.toSorted(), ["pi-subagents", "pi-todos", "pi-usage"]);
+  assert.deepEqual(seen.commands.toSorted(), ["open-pi-subagents", "open-pi-todos", "open-pi-usage"]);
 
   assert.doesNotThrow(() => cleanup?.(), "cleanup 不该抛");
 });

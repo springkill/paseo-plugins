@@ -7,7 +7,13 @@
  */
 
 import type { PluginCleanup, PluginTheme } from "@getpaseo/plugin";
-import { type PluginClientContext, type PluginTimelineItemProps, useAgent, useRpc } from "@getpaseo/plugin/client";
+import {
+  type PluginAgentPanelProps,
+  type PluginClientContext,
+  type PluginTimelineItemProps,
+  useAgent,
+  useRpc,
+} from "@getpaseo/plugin/client";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { useQuery } from "@tanstack/react-query";
 import React, { useEffect, useState } from "react";
@@ -29,7 +35,7 @@ import {
   KeyValue,
   MetaRow,
   Mono,
-  PopoverShell,
+  ContentShell,
   RowShell,
   SPACE,
   text,
@@ -198,7 +204,7 @@ export function SubagentTimelineCard({ item, theme, host, layout, agentId }: Plu
  * ⭐ 0.7 时这是个注册到 explorer 侧栏的面板。0.8 改成 popover —— explorer
  * 在窄屏上根本不存在（见 docs/card-design.md §5），popover 两端都能用。
  */
-export function SubagentPopover({ theme, host, layout, agentId }: AgentPillContentProps) {
+function SubagentPopoverBody({ theme, host, layout, agentId, shell }: AgentPillContentProps & { shell: "popover" | "panel" }) {
   const localeCtx = useLocale(host.id);
   const t = localeCtx.t;
   const agentRunning = useAgent(agentId, (agent) => agent.status === "running") ?? false;
@@ -206,7 +212,8 @@ export function SubagentPopover({ theme, host, layout, agentId }: AgentPillConte
   const counts = subagentCounts(query.data?.calls);
 
   return (
-    <PopoverShell
+    <ContentShell
+      kind={shell}
       theme={theme}
       compact={layout.compact}
       title={t.panel_subagents}
@@ -221,7 +228,7 @@ export function SubagentPopover({ theme, host, layout, agentId }: AgentPillConte
       {!query.isLoading && !query.error && query.data?.calls.length === 0 ? (
         <EmptyState label={t.subagents_none_for_agent} theme={theme} />
       ) : null}
-    </PopoverShell>
+    </ContentShell>
   );
 }
 
@@ -254,4 +261,20 @@ export function registerSubagentPill(client: PluginClientContext): PluginCleanup
     createIcon: createSubagentPillIcon,
     Content: SubagentPopover,
   });
+}
+
+/**
+ * 两个出口，同一份内容。
+ *
+ * - `SubagentPopover` —— composer pill 点开的 popover（两端都可用）
+ * - `SubagentPanel` —— 面板。**只有桌面 web 才可能落到 explorer 侧栏**
+ *   （宿主 `supportsDesktopPaneSplits()` 直接 `return isWeb`）；
+ *   原生端会退回主区标签页。见 client/open-panel.ts。
+ */
+export function SubagentPopover(props: AgentPillContentProps) {
+  return <SubagentPopoverBody {...props} shell="popover" />;
+}
+
+export function SubagentPanel(props: PluginAgentPanelProps) {
+  return <SubagentPopoverBody {...props} close={() => {}} shell="panel" />;
 }

@@ -500,10 +500,10 @@ export function DisclosureHeader({ open, onPress, label, theme, count, tone }: {
 // ── 面板 ────────────────────────────────────────────────────────────
 
 /**
- * popover 外框。三个 composer pill 弹出的内容从此长一个样。
+ * 内容外框 —— 同一份内容要出现在两种容器里，chrome 完全不同。
  *
  * ═══════════════════════════════════════════════════════════════════
- * ⭐ **这里几乎什么都不画 —— 因为宿主已经画好了。**
+ * ## `kind: "popover"` —— **这里几乎什么都不画，因为宿主已经画好了**
  *
  * 宿主渲染插件 popover 的方式（从 web-ui 产物读出来的）：
  *
@@ -512,27 +512,28 @@ export function DisclosureHeader({ open, onPress, label, theme, count, tone }: {
  *              maxHeight={440} scrollable compactMode="sheet">
  *   <View style={{ padding: spacing[3], gap: spacing[2] }}>
  *     <Content … close={close} />
- *   </View>
- * </MenuSurface>
  * ```
  *
- * 也就是说宿主负责：**外框（border + 圆角 + 阴影 + `surface0`）、内边距、
- * 子元素间距、滚动、以及手机上的 sheet 标题**。
+ * 宿主负责：外框（border + 圆角 + 阴影 + `surface0`）、内边距、子元素间距、
+ * 滚动、以及窄屏的 sheet 标题。所以这里绝不能再套外边距 / ScrollView /
+ * `flex: 1` / 边框 —— 那就是「边框套边框、内边距翻倍、双层滚动打架」的来源。
  *
- * 所以这里绝不能再套：
+ * ⚠️ 标题只在 `!compact` 时画：`compactMode: "sheet"` 意味着窄屏是 sheet，
+ * 宿主已经把 `button.title` 显示在 sheet 头上了。
  *
- * - ❌ 外边距 —— 会和宿主的 `spacing[3]` 叠成双份
- * - ❌ `ScrollView` —— 宿主已经 `scrollable`，双层滚动手势会打架
- * - ❌ `flex: 1` —— 宿主按内容撑开（`maxHeight` 封顶），没有参照会塌
- * - ❌ 边框 —— 就是「边框套边框」的来源
+ * ## `kind: "panel"` —— 相反，这里什么都得自己画
  *
- * ⚠️ **标题只在桌面画。** `compactMode: "sheet"` 意味着窄屏是 sheet，
- * 宿主已经把 `button.title` 显示在 sheet 头上了，再画一个就是重复。
+ * 面板是个裸容器：要自己给内边距、滚动、标题、页脚。
+ *
+ * ⚠️ 面板只在**桌面 web** 才可能落到 explorer 侧栏
+ * （`supportsDesktopPaneSplits()` 直接 `return isWeb`）；原生端会退回主区
+ * 标签页。两种落点都是宽容器，所以卡片沿用时间线那套（描边 + `surface1`）。
  * ═══════════════════════════════════════════════════════════════════
  */
-export function PopoverShell({ theme, compact, title, subtitle, actions, footer, children }: {
+export function ContentShell({ kind, theme, compact, title, subtitle, actions, footer, children }: {
+  kind: "popover" | "panel";
   theme: PluginTheme;
-  /** 来自 `layout.compact` —— true 表示宿主把它渲染成了带标题的 sheet。 */
+  /** 来自 `layout.compact`。popover 下为 true 表示宿主渲染成了带标题的 sheet。 */
   compact: boolean;
   title: string;
   subtitle?: string | null;
@@ -540,21 +541,42 @@ export function PopoverShell({ theme, compact, title, subtitle, actions, footer,
   footer?: React.ReactNode;
   children: React.ReactNode;
 }) {
+  const header = (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: SPACE.gap }}>
+      <View style={{ flex: 1, gap: SPACE.hair }}>
+        <Text numberOfLines={1} style={text(theme, kind === "panel" ? "panelTitle" : "cardTitle")}>{title}</Text>
+        {subtitle ? <Text style={text(theme, "meta", { muted: true })}>{subtitle}</Text> : null}
+      </View>
+      {actions ?? null}
+    </View>
+  );
+
+  if (kind === "panel") {
+    return (
+      <View style={{ flex: 1, backgroundColor: theme.colors.surface0 }}>
+        <View style={{ paddingHorizontal: SPACE.card, paddingTop: SPACE.card, paddingBottom: SPACE.gap }}>
+          {header}
+        </View>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ paddingHorizontal: SPACE.card, paddingBottom: SPACE.card, gap: SPACE.gap }}
+        >
+          {children}
+        </ScrollView>
+        {footer ? (
+          <View style={{ paddingHorizontal: SPACE.card, paddingVertical: SPACE.gap, borderTopWidth: 1, borderTopColor: theme.colors.border }}>
+            {footer}
+          </View>
+        ) : null}
+      </View>
+    );
+  }
+
   return (
     <SurfaceProvider kind="popover">
       <View style={{ gap: SPACE.gap }}>
-        {compact ? null : (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: SPACE.gap }}>
-            <View style={{ flex: 1, gap: SPACE.hair }}>
-              <Text numberOfLines={1} style={text(theme, "cardTitle")}>{title}</Text>
-              {subtitle ? <Text style={text(theme, "meta", { muted: true })}>{subtitle}</Text> : null}
-            </View>
-            {actions ?? null}
-          </View>
-        )}
-        {compact && subtitle ? (
-          <Text style={text(theme, "meta", { muted: true })}>{subtitle}</Text>
-        ) : null}
+        {compact ? null : header}
+        {compact && subtitle ? <Text style={text(theme, "meta", { muted: true })}>{subtitle}</Text> : null}
         {compact && actions ? <MetaRow>{actions}</MetaRow> : null}
         {children}
         {footer ? (

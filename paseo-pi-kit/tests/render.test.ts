@@ -175,7 +175,13 @@ async function renderAll(): Promise<{ ok: number; failures: string[] }> {
   const client = {
     addTimelineTransformer: (c: never) => { transformers.push(c); return noop; },
     addTimelineRenderer: (c: { kind: string; Component: unknown }) => { renderers.set(c.kind, c); return noop; },
-    addWorkspacePanel: () => noop, addCommandCenterItem: () => noop,
+    // ⭐ 面板也要渲染 —— 它和 popover 是同一份内容的两个出口，
+    // 但走的是 ContentShell 的另一个分支（自带滚动/内边距/flex）。
+    addWorkspacePanel: (c: { id: string; Component: unknown }) => {
+      surfaces.push({ id: `panel:${c.id}`, Component: c.Component });
+      return noop;
+    },
+    addCommandCenterItem: () => noop,
     addSurface: () => noop, addSidebarItem: () => noop, addAttachmentSource: () => noop,
     addTheme: () => noop, addSettingsScreen: () => noop, addSlashCommand: () => noop,
     addHeaderButton: () => ({ update: noop, remove: noop }),
@@ -263,8 +269,8 @@ test("⭐ 所有卡片都渲染得出来", { skip }, async () => {
   const { ok, failures } = await renderAll();
   assert.deepEqual(failures, [], `\n${failures.join("\n")}\n`);
   // 9 条样本 + 3 个面板 + 3 个 pill
-  // 9 条通知样本 + 3 个 pill 图标 + 3 个 popover
-  assert.ok(ok >= NOTICE_FIXTURES.length + 6, `只渲染了 ${ok} 个界面`);
+  // 9 条通知样本 + 3 个 pill 图标 + 3 个 popover + 3 个面板
+  assert.ok(ok >= NOTICE_FIXTURES.length + 9, `只渲染了 ${ok} 个界面`);
 });
 
 test("⭐ 在没有 Intl 的运行时上也渲染得出来（安卓 Hermes）", { skip }, async () => {
