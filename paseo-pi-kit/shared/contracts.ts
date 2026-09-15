@@ -18,8 +18,8 @@ export const reportRpc = defineRpc({
 export const LocalePreferenceSchema = z.enum(["auto", ...LOCALES]);
 
 /**
- * 界面语言。**本插件与 paseo-rumen 共用同一个设置**，所以这个 RPC 读写的是
- * `$PASEO_HOME/plugin-locale.json`，不是本插件私有的状态。
+ * 界面语言。这个 RPC 读写的是 `$PASEO_HOME/plugin-locale.json` ——
+ * **同机 Paseo 插件共用的一份**，不是本插件私有的状态。
  */
 export const localeRpc = defineRpc({
   name: "pi-kit.locale",

@@ -1,8 +1,8 @@
 /**
  * 语言 hook 与选择器。
  *
- * 设置是**三个 Paseo 插件共用**的，所以这里改一次，rumen 和 provider-balances
- * 下次渲染也跟着变。
+ * 设置存在 `$PASEO_HOME/plugin-locale.json`，**同机的 Paseo 插件共用这一份** ——
+ * 这里改一次，别的插件下次渲染也跟着变。
  */
 
 import { type PluginTheme } from "@getpaseo/plugin";
