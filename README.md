@@ -11,10 +11,6 @@ A collection of practical plugins for [Paseo](https://github.com/getpaseo/paseo)
 Each plugin has its own README with the details. This file only covers what they
 share: installing, versioning, and the conventions they follow.
 
-> Rumen — which turns code an agent wrote *and you never read* into visible
-> knowledge debt — lives in its own repo:
-> [springkill/paseo-rumen](https://github.com/springkill/paseo-rumen).
-
 ## Install
 
 ```bash
@@ -27,7 +23,7 @@ a repository.
 Pin a version, or follow updates:
 
 ```bash
-paseo plugin install https://github.com/springkill/paseo-plugins:paseo-pi-kit --ref paseo-pi-kit-v0.3.3
+paseo plugin install https://github.com/springkill/paseo-plugins:paseo-pi-kit --ref paseo-pi-kit-v0.8.3
 paseo plugin status              # anything newer?
 paseo plugin update --all
 ```
@@ -52,7 +48,7 @@ pin `--ref` to a commit you have reviewed yourself.
 **Every plugin is versioned on its own.** Tags look like:
 
 ```
-<plugin-directory>-v<semver>        e.g.  paseo-pi-kit-v0.3.3
+<plugin-directory>-v<semver>        e.g.  paseo-pi-kit-v0.8.3
 ```
 
 Pushing such a tag runs the checks for *that plugin only*, then publishes a
@@ -81,23 +77,32 @@ needs no workflow changes**.
 
 ## Shared conventions
 
-**Interface language.** Plugins here share one setting with
-[paseo-rumen](https://github.com/springkill/paseo-rumen) — change it in either
-and the other follows on its next render:
+**Interface language.** Paseo plugins on the same machine share one setting —
+change it in any of them and the rest follow on their next render:
 
 ```
 $PASEO_HOME/plugin-locale.json      # { "locale": "auto" | "zh" | "en" }
 ```
+
+That file is **not owned by any single plugin** — do not delete it when
+uninstalling one.
 
 Resolution order, highest first: `<PLUGIN>_LANG` → `PASEO_PLUGIN_LANG` → the
 shared setting → the client's own locale → `LC_ALL` / `LC_MESSAGES` / `LANG` →
 English. The client only *reports* its locale; the decision is made server-side,
 because deciding in both places guarantees they eventually disagree.
 
-**Layout.** See [STRUCTURE.md](STRUCTURE.md). The short version: `domain/` is
-pure logic shared by both ends, `server/` runs in the plugin subprocess, `ui/`
-runs inside the Paseo app — and **the filename suffix is what the compiler
-splits on, not the directory**.
+**Layout.** See [STRUCTURE.md](STRUCTURE.md). The short version: `shared/` is
+pure logic that goes into both bundles, `server/` runs in the daemon, `client/`
+runs inside the Paseo app — and since Paseo 0.8 **the directory is what the
+compiler splits on**, enforced at compile time. Entry points are
+`index.client.tsx` and `index.server.ts`.
+
+**Paseo 0.8 or newer.** Each manifest declares
+`"requirements": { "paseo": ">=0.8.0" }`; without it a 0.8 daemon refuses to
+load the plugin. Note that the *client* bundle is evaluated by the **app**, not
+the daemon — an older app (0.7.x) cannot run these plugins even against a 0.8
+daemon, and fails with no visible surfaces at all.
 
 ## Development
 

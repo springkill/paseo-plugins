@@ -10,9 +10,6 @@
 
 每个插件有自己的 README 讲细节。这份只讲它们共用的东西：安装、发版、共同约定。
 
-> Rumen —— 把 agent 写掉、而你没读过的代码变成可见的知识债 —— 在单独的仓库：
-> [springkill/paseo-rumen](https://github.com/springkill/paseo-rumen)。
-
 ## 安装
 
 ```bash
@@ -24,7 +21,7 @@ paseo plugin install https://github.com/springkill/paseo-plugins:paseo-pi-kit
 钉版本、追更新：
 
 ```bash
-paseo plugin install https://github.com/springkill/paseo-plugins:paseo-pi-kit --ref paseo-pi-kit-v0.3.3
+paseo plugin install https://github.com/springkill/paseo-plugins:paseo-pi-kit --ref paseo-pi-kit-v0.8.3
 paseo plugin status              # 有没有新版
 paseo plugin update --all
 ```
@@ -46,7 +43,7 @@ Paseo 的插件是**受信任、不沙箱**的：
 **每个插件各自发版。** tag 形如：
 
 ```
-<插件目录>-v<semver>        例如  paseo-pi-kit-v0.3.3
+<插件目录>-v<semver>        例如  paseo-pi-kit-v0.8.3
 ```
 
 推这样一个 tag，只跑**那一个插件**的检查，然后发一个 GitHub Release，仓库里别的
@@ -72,21 +69,29 @@ CI 靠 `*/paseo-plugin.json` 自动发现插件，**加新插件不用改 workfl
 
 ## 共同约定
 
-**界面语言。** 本仓库的插件与
-[paseo-rumen](https://github.com/springkill/paseo-rumen) **共用同一个设置**，
-在任何一边改，另一边下次渲染就跟上：
+**界面语言。** 同机的 Paseo 插件**共用同一个设置**，在任何一个里改，
+其它的下次渲染就跟上：
 
 ```
 $PASEO_HOME/plugin-locale.json      # { "locale": "auto" | "zh" | "en" }
 ```
 
+⚠️ 这个文件**不归任何单个插件独占** —— 卸载某个插件时不要删它。
+
 优先级从高到低：`<PLUGIN>_LANG` → `PASEO_PLUGIN_LANG` → 共享设置 → 客户端自身语言
 → `LC_ALL` / `LC_MESSAGES` / `LANG` → 英文。客户端只负责**报告**自己的语言，判定
 一律在服务端 —— 两边各判一次，迟早会判出不一样的结果。
 
-**目录结构。** 见 [STRUCTURE.md](STRUCTURE.md)。一句话：`domain/` 是两端共用的纯
-逻辑，`server/` 跑在插件子进程，`ui/` 跑在 Paseo 应用里 —— 而且**编译器按文件名
-后缀切分前后端，不看目录**。
+**目录结构。** 见 [STRUCTURE.zh-CN.md](STRUCTURE.zh-CN.md)。一句话：`shared/`
+是两端都进的纯逻辑，`server/` 跑在 daemon，`client/` 跑在 Paseo 应用里 ——
+Paseo 0.8 起**编译器按目录切分**，越界在编译期报错。入口是
+`index.client.tsx` 与 `index.server.ts`。
+
+**需要 Paseo 0.8 及以上。** 每个清单都声明了
+`"requirements": { "paseo": ">=0.8.0" }`，不声明的话 0.8 的 daemon 会直接拒绝加载。
+
+⚠️ 注意**客户端 bundle 是由 app 求值的，不是 daemon**。旧版 app（比如 0.7.2）
+即使连着 0.8 的 daemon 也跑不了这些插件 —— 求值直接失败，界面一个都出不来。
 
 ## 开发
 

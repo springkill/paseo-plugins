@@ -12,7 +12,7 @@
 
 把 Pi 的 `todo` 工具调用（以及 Paseo 原生 `todo` 条目）换成进度卡：进度条、
 按状态着色、显示进行中的任务和接下来要做的。composer pill 显示 `完成数/总数`
-和当前 `activeForm`，点开是完整列表。
+和当前 `activeForm`，**点一下就地弹出**完整列表。
 
 ### Subagents
 
@@ -21,8 +21,7 @@
 所以子任务的 running / completed / failed **在调用还没结束时**就能看到，
 而不是等整个调用完成。
 
-另外提供 `Subagents` composer pill（`运行中/总数`）和绑定当前精确 agent 的
-**Pi Subagents** 面板。
+另外提供 `Subagents` composer pill（`运行中/总数`），点开弹出完整列表。
 
 ### Pi 通知卡片
 
@@ -31,9 +30,12 @@ Pi 用结构化的 `custom_message` 发后台任务、workflow、subagent 督导
 `<background-task-notification>` XML、给模型抄的工具调用样板，以及被
 `JSON.stringify` 转义又从字符串中间截断的 workflow 返回值。
 
-这块把结构还原回来：四个 Pi 插件发出的九种消息，每一种都是照着生产它的那个
+这块把结构还原回来：四个 Pi 插件发出的**十三种**消息，每一种都是照着生产它的那个
 `format*()` 函数逆向写的。workflow 完成通知**按子任务展开**，而不是把截断的
 JSON 原样倒出来。
+
+⚠️ Pi 插件更新会悄悄加新消息类型。格式表里写了**重扫命令** —— 按样本一条条补
+是补不完的。
 
 ⚠️ 发给**父 agent** 的那些（supervisor 请求、control notice）折叠成一行，绝不做成
 需要你操作的样子 —— 它们的 `Reply with: …` 是只有模型能发的工具调用。真正需要你
@@ -45,7 +47,22 @@ JSON 原样倒出来。
 
 ### Provider 用量
 
-composer pill 显示各 provider 的额度窗口与余额，带重置时间和用尽预估。
+composer pill 的仪表图标在额度将尽或 provider 报错时变红；点开弹出各 provider
+的额度窗口与余额，带重置时间和用尽预估。
+
+### 两条入口
+
+三块功能都有**两个出口**：
+
+| | composer pill | 命令面板 |
+|---|---|---|
+| 形态 | 点一下就地弹出 | 打开面板 |
+| 桌面 web | ✅ | ✅ 落到 **explorer 侧栏**，可以一直开着对照看 |
+| 原生 app（iOS / 安卓） | ✅ | ⚠️ 退回主区标签页 |
+
+⚠️ explorer 侧栏在原生端拿不到，是宿主的硬限制（`supportsDesktopPaneSplits()`
+直接 `return isWeb`），不是本插件能绕的。细节见
+[`docs/card-design.md`](docs/card-design.md) §5 / §8。
 
 ## 安装
 
@@ -53,7 +70,10 @@ composer pill 显示各 provider 的额度窗口与余额，带重置时间和�
 paseo plugin install https://github.com/springkill/paseo-plugins:paseo-pi-kit
 ```
 
-钉版本用 `--ref paseo-pi-kit-v0.3.3`，见[发版说明](../README.zh-CN.md#发版与版本号)。
+钉版本用 `--ref paseo-pi-kit-v0.8.3`，见[发版说明](../README.zh-CN.md#发版与版本号)。
+
+⚠️ **需要 Paseo 0.8 及以上**，daemon 和 **app 都要**。客户端 bundle 是由 app
+求值的 —— 旧版 app 即使连着 0.8 的 daemon 也跑不了，界面一个都出不来。
 
 ⚠️ Paseo 插件是**受信任、不沙箱**的。本插件声明了 `build` 命令（`npm install`），
 它会在你的机器上执行 —— 见[仓库 README](../README.zh-CN.md#-安装前请知道)。

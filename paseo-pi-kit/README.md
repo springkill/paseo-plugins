@@ -12,7 +12,7 @@ sessions in [Paseo](https://github.com/getpaseo/paseo). All on by default.
 Replaces Pi's `todo` tool calls (and Paseo's native `todo` items) with a progress
 card: a bar, per-task status colours, and the in-progress task plus what is next.
 A composer pill shows `done / total` and the current `activeForm`; clicking it
-opens the full list.
+**opens the full list in place**.
 
 ### Subagents
 
@@ -22,8 +22,8 @@ workflows are read from the live `status.json` the session records, so children
 appear as running / completed / failed **while the call is still in flight**
 rather than only at the end.
 
-Adds a `Subagents` composer pill (`running / total`) and a **Pi Subagents** panel
-scoped to the exact agent you are looking at.
+Adds a `Subagents` composer pill (`running / total`) that opens the full list in
+place, scoped to the exact agent you are looking at.
 
 ### Pi notice cards
 
@@ -33,9 +33,13 @@ so you see raw `<background-task-notification>` XML, tool-call boilerplate meant
 for the model, and workflow return values that were `JSON.stringify`-escaped and
 then truncated mid-string.
 
-This restores the structure: nine message types across four Pi plugins, each one
-reverse-engineered from the `format*()` function that produces it. Workflow
-completions are expanded **per child run** instead of dumping the truncated JSON.
+This restores the structure: **thirteen** message types across four Pi plugins,
+each one reverse-engineered from the `format*()` function that produces it.
+Workflow completions are expanded **per child run** instead of dumping the
+truncated JSON.
+
+⚠️ Pi plugin updates quietly add new message types. The format reference carries
+a **re-scan command** — chasing one pasted sample at a time never converges.
 
 ⚠️ Notices addressed to the *parent agent* (supervisor requests, control notices)
 are collapsed to one line and never styled as something you must act on — their
@@ -49,8 +53,23 @@ Card design (how arbitrary JSON becomes readable, and why every card looks alike
 
 ### Provider usage
 
-Composer pills showing each provider's quota windows and balances, with reset
-times and a shortfall estimate.
+The composer pill's gauge icon turns red when a quota is nearly spent or a
+provider errors; opening it shows each provider's quota windows and balances,
+with reset times and a shortfall estimate.
+
+### Two entry points
+
+All three features have **two exits**:
+
+| | Composer pill | Command centre |
+|---|---|---|
+| Form | Opens in place | Opens a panel |
+| Desktop web | ✅ | ✅ lands in the **explorer side pane** — keep it open alongside |
+| Native app (iOS / Android) | ✅ | ⚠️ falls back to a main-area tab |
+
+⚠️ The explorer side pane is unavailable on native — a host limitation
+(`supportsDesktopPaneSplits()` is literally `return isWeb`), not something a
+plugin can work around. See [`docs/card-design.md`](docs/card-design.md) §5 / §8.
 
 ## Install
 
@@ -58,8 +77,12 @@ times and a shortfall estimate.
 paseo plugin install https://github.com/springkill/paseo-plugins:paseo-pi-kit
 ```
 
-Pin a version with `--ref paseo-pi-kit-v0.3.3`. See
+Pin a version with `--ref paseo-pi-kit-v0.8.3`. See
 [versioning](../README.md#versioning-and-releases).
+
+⚠️ **Requires Paseo 0.8 or newer — both the daemon and the app.** The client
+bundle is evaluated by the *app*, so an older app cannot run this plugin even
+against a 0.8 daemon; it fails with no visible surfaces at all.
 
 ⚠️ Paseo plugins are **trusted and unsandboxed**. This one declares a `build`
 command (`npm install`) that runs on your machine — see

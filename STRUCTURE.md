@@ -1,60 +1,73 @@
-# 插件结构（Paseo 0.8）
+# Layout conventions (Paseo 0.8)
+
+*[中文](STRUCTURE.zh-CN.md)*
 
 ```
-index.client.tsx   客户端入口 —— 时间线卡片、composer pill
-index.server.ts    服务端入口 —— RPC 处理
-client/            只进 app bundle（浏览器 / iOS / 安卓 Hermes）
-server/            只进 daemon bundle（Node，可用 node:*）
-shared/            两边都进：纯逻辑、契约、文案表
+index.client.tsx   client entry — timeline cards, composer pills
+index.server.ts    server entry — RPC handlers
+client/            app bundle only (browser / iOS / Android Hermes)
+server/            daemon bundle only (Node, may use node:*)
+shared/            both bundles: pure logic, contracts, message catalog
 tests/
 docs/
 ```
 
-## 边界由编译器强制
+## The compiler enforces the boundary
 
-0.8 按**目录**划边界，不再看文件名后缀：
+Since 0.8 the split is by **directory**, not by filename suffix:
 
 ```js
 directoryTarget(file):
-  client/ → client      server/ → server      shared/ → 两边
-  index.client.tsx / index.server.ts → 各自入口
-  其余一律 "invalid" → 编译报错
+  client/ → client      server/ → server      shared/ → both
+  index.client.tsx / index.server.ts → the two entries
+  anything else → "invalid" → compile error
 ```
 
-把 `server/foo.ts` 引进客户端代码会直接编译失败：
+Importing `server/foo.ts` from client code fails the build outright:
 
 ```
 server-only module cannot be imported into the plugin client bundle: …
 ```
 
-⚠️ **0.7 不是这样的**，它靠在 `index.ts` 上做文本删除
-（`REGISTRATIONS_REMOVED_BY_TARGET`）。那套**不检查引用**，踩过两次
-（`readFlags is not defined`、cleanup 里的 `closeProviderUsageClient`），
-只能靠 `typeof X === "function"` 守卫兜，而且失败时服务端一切正常、
-`paseo plugin ls` 照样 running。**0.8 之后这些守卫都可以删。**
+⚠️ **0.7 did not work this way.** It filtered the text of `index.ts`
+(`REGISTRATIONS_REMOVED_BY_TARGET` + `collectOppositeTargetImportRanges`):
+imports for the opposite target were deleted whole, as were the registration
+calls that target did not want.
 
-## 依赖方向
+That mechanism **did not check references**, and it bit us twice —
+`readFlags is not defined` and `closeProviderUsageClient` in the cleanup — each
+needing a `typeof X === "function"` guard. Worse, when it failed **the server
+half was fine** and `paseo plugin ls` still reported `running`.
+**Those guards are unnecessary on 0.8.**
+
+## Dependency direction
 
 ```
 client/  ──▶  shared/  ◀──  server/
 ```
 
-`shared/` 不引 `client/` 也不引 `server/`。这是它能脱离宿主单测的原因。
+`shared/` imports neither side. That is what keeps it unit-testable without a host.
 
-## SDK 子路径
+## SDK subpaths
 
-| 用途 | 从哪引 |
+| For | Import from |
 |---|---|
-| `defineRpc` / `defineSettings` / 契约类型 | `@getpaseo/plugin` |
-| hooks（`useRpc` / `useAgent` / `useWorkspace`）与客户端类型 | `@getpaseo/plugin/client` |
+| `defineRpc` / `defineSettings` / contract types | `@getpaseo/plugin` |
+| Hooks (`useRpc` / `useAgent` / `useWorkspace`) and client types | `@getpaseo/plugin/client` |
 | `Icon` / `Modal` / `useToast` | `@getpaseo/plugin/client/react-native` |
-| 设置界面组件 | `@getpaseo/plugin/client/ui` |
-| `PluginServerContext` / 生命周期类型 | `@getpaseo/plugin/server` |
+| Settings screen components | `@getpaseo/plugin/client/ui` |
+| `PluginServerContext` / lifecycle types | `@getpaseo/plugin/server` |
 
-## 清单
+## Manifest
 
 ```json
 { "id": "…", "requirements": { "paseo": ">=0.8.0" } }
 ```
 
-不声明 `requirements.paseo` 的话，0.8 直接按「targets pre-0.8」拒绝加载。
+Without `requirements.paseo`, a 0.8 daemon rejects the plugin as targeting pre-0.8.
+
+⚠️ **The client bundle is evaluated by the app, using the app's own plugin
+runtime.** So upgrading the daemon to 0.8 is not enough — an older app (0.7.2,
+say) cannot provide the new `@getpaseo/plugin/client` subpaths, evaluation fails,
+and *no* surfaces appear. Check the `appVersion` of every connected client before
+upgrading the daemon.
