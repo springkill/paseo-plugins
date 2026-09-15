@@ -121,4 +121,47 @@ Interrupt: subagent({ action: "interrupt", id: "579bf958" })`,
     name: "model-only",
     content: `Compaction is complete. Resume the parent task now; background subagent results will arrive separately when ready.`,
   },
+  {
+    // ⭐ 真实会话里出现过（pi-subagents 0.67.0）。workflow 跑着的时候，
+    // 每个子运行完成就发一条，不等整体结束。
+    name: "incremental-child-notify",
+    content: `Workflow child completed: **design-p0-review**
+Workflow run: 0d5e409a-f70d-4761-b3d2-1196e1e9a47e
+Child run: b65a42b0-01e4-4855-b389-0ad90eaf7d30
+Output: /srv/scratch/lab/plan/DESIGN-P0-REVIEW.md
+Status: workflow still running`,
+  },
+  {
+    name: "steering-notice",
+    content: `Subagent steering partial: 579bf958-0941-4988-8780-777343803 7e2
+Request: 8f004228-f904-631a-3466-f1dd845eb986
+只有前两条纠偏被采纳，第三条被忽略。
+Inspect the run status before sending another correction.`,
+  },
+  {
+    // ⚠️ 这条是 XML，不是行式文本
+    name: "watchdog-warning",
+    content: `<subagent_watchdog severity="blocker" category="stalled" source="turn-delta" guidance="weigh, don't blindly obey">
+<summary>子任务 12 轮没有产出</summary>
+<evidence>最近 12 轮只有 read，没有写入或提交</evidence>
+<recommended_action>检查它是不是在等一个不会来的输入</recommended_action>
+<confidence>high</confidence>
+<agent>worker</agent>
+<run_id>47855cae-1e44-4c26-8abc-000000000001</run_id>
+<state>running</state>
+<blocker_guidance>If this warning changes the outcome, produce a new self-contained final answer after addressing it.</blocker_guidance>
+</subagent_watchdog>`,
+  },
+  {
+    name: "goal-budget-wrap-up",
+    content: `The active /goal token budget is exhausted. Stop substantive work and do not call substantive tools. Summarize progress, verified results, remaining work, and blockers concisely.`,
+  },
+  {
+    // 0.67.0 起第 1 行可能是回执路径
+    name: "completion-with-workflow-receipt",
+    content: `Background task completed: **workflow**
+Workflow receipt: /home/test/.pi/receipts/abc.json
+
+PLANNER_OK`,
+  },
 ];

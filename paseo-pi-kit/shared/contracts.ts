@@ -80,6 +80,8 @@ export const ChildRunSchema = z.object({
 export const WorkflowSummarySchema = z.object({
   childCount: z.number().int().nonnegative().optional(),
   traceEvents: z.number().int().nonnegative().optional(),
+  /** `Workflow receipt: {path}` —— 0.67.0 起会出现在通知第 1 行。 */
+  receiptPath: z.string().max(1000).optional(),
   /** `Output path mappings:` 与 preflight 告警。 */
   notes: z.array(z.string().max(600)).max(20).default([]),
   /** true = 丢掉了 `Return:` 那段被 Pi 截断到 1000 字符的预览。 */
@@ -130,7 +132,10 @@ export const PiNoticeSchema = z.object({
     "control",          // subagent_control_notice
     "wait",             // subagent-wait-subscription
     "web_fetch",        // web-search-content-ready / web-search-error
-    "model_only",       // goal-contract / subagent-compaction-resume（Pi 自己从不显示）
+    "model_only",       // goal-contract / subagent-compaction-resume / goal-budget-wrap-up
+    "child_notify",     // subagent-incremental-child-notify（workflow 单个子运行完成）
+    "steering",         // subagent_steering_notice
+    "watchdog",         // subagent_watchdog_warning
   ]),
   /** 同一 kind 下的子形态，取值见 docs/pi-message-formats.md。 */
   variant: z.string().max(60).optional(),
@@ -157,6 +162,25 @@ export const PiNoticeSchema = z.object({
   signal: z.string().max(2000).optional(),
   facts: z.array(z.string().max(200)).max(12).default([]),
   recentFailures: z.string().max(2000).optional(),
+
+  // ── child_notify（workflow 里单个子运行的增量完成）──
+  /** `Workflow child …: **{childKey}**` 里的那个 key。 */
+  childKey: z.string().max(200).optional(),
+  /** `Status: workflow still running` → true。workflow 整体还没结束。 */
+  workflowRunning: z.boolean().optional(),
+  /** 这个子运行所属的 workflow。 */
+  workflowRunId: z.string().max(200).optional(),
+  outputReference: z.string().max(1000).optional(),
+
+  // ── steering ──
+  requestId: z.string().max(200).optional(),
+
+  // ── watchdog ──
+  /** `severity="blocker" | "warning" | …`，决定色调。 */
+  severity: z.string().max(40).optional(),
+  category: z.string().max(80).optional(),
+  evidence: z.string().max(4000).optional(),
+  recommendedAction: z.string().max(2000).optional(),
 
   // ── wait ──
   token: z.string().max(200).optional(),

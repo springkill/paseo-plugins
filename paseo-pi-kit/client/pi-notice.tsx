@@ -84,7 +84,19 @@ function headline(notice: PiNotice, t: Translator): string {
     case "model_only":
       return notice.variant === "goal_contract"
         ? t.notice_model_only_goal
-        : t.notice_model_only_compaction;
+        : notice.variant === "goal_budget"
+          ? t.notice_model_only_budget
+          : t.notice_model_only_compaction;
+    case "child_notify":
+      return t.notice_child_notify(notice.childKey ?? "—");
+    case "steering":
+      return notice.variant === "recovered"
+        ? t.notice_steering_recovered
+        : notice.variant === "partial"
+          ? t.notice_steering_partial
+          : t.notice_steering_failed;
+    case "watchdog":
+      return notice.signal ?? t.notice_watchdog;
   }
 }
 
@@ -94,6 +106,22 @@ function visuals(notice: PiNotice, theme: PluginTheme): { icon: string; color: s
   // 这条是发给父 agent 的，不是你的待办
   if (notice.kind === "control" && notice.variant !== "failed") {
     return { icon: "TriangleAlert", color: theme.colors.statusWarning, accent: false };
+  }
+  // ⚠️ 与 control 同理：留警示色（值得一眼看到），但不给强调边框 ——
+  // 它们都是发给父 agent 的，不是你的待办
+  if (notice.kind === "watchdog") {
+    return {
+      icon: "ShieldAlert",
+      color: notice.severity === "blocker" ? theme.colors.statusDanger : theme.colors.statusWarning,
+      accent: false,
+    };
+  }
+  if (notice.kind === "steering") {
+    return {
+      icon: "Navigation",
+      color: notice.variant === "recovered" ? theme.colors.statusSuccess : theme.colors.statusWarning,
+      accent: false,
+    };
   }
   if (notice.status === "failed") {
     return { icon: "CircleX", color: theme.colors.statusDanger, accent: true };
@@ -109,6 +137,9 @@ function visuals(notice: PiNotice, theme: PluginTheme): { icon: string; color: s
     wait: "AlarmClock",
     web_fetch: "Globe",
     model_only: "EyeOff",
+    child_notify: "GitBranch",
+    steering: "Navigation",
+    watchdog: "ShieldAlert",
   };
   return { icon: byKind[notice.kind], color: theme.colors.foregroundMuted, accent: false };
 }
@@ -116,7 +147,7 @@ function visuals(notice: PiNotice, theme: PluginTheme): { icon: string; color: s
 function statusLabel(notice: PiNotice, t: Translator): string | null {
   // control 的状态标题里已经写了（「Subagent 需要关注」），再挂个状态角标
   // 只会让它更像一件待办
-  if (notice.kind === "control") return null;
+  if (notice.kind === "control" || notice.kind === "steering" || notice.kind === "watchdog") return null;
   switch (notice.status) {
     case "completed": return t.notice_status_completed;
     case "failed": return t.notice_status_failed;
@@ -359,7 +390,18 @@ export function PiNoticeCard({ notice, theme, t }: {
         {notice.step !== undefined ? <Chip text={t.notice_step(notice.step)} theme={theme} /> : null}
         {notice.fetched ? <Chip text={t.notice_fetched(notice.fetched.done, notice.fetched.total)} theme={theme} /> : null}
         {notice.outcome ? <Chip text={notice.outcome} theme={theme} /> : null}
+        {notice.severity ? <Chip text={notice.severity} theme={theme} tone={notice.severity === "blocker" ? "danger" : "warning"} /> : null}
+        {notice.category ? <Chip text={notice.category} theme={theme} /> : null}
+        {notice.workflowRunning === undefined ? null : (
+          <Chip
+            text={notice.workflowRunning ? t.notice_workflow_running : t.notice_workflow_finished}
+            theme={theme}
+            {...(notice.workflowRunning ? {} : { tone: "ok" as const })}
+          />
+        )}
         {notice.runId ? <Mono label={`${t.notice_run} ${notice.runId.slice(0, 8)}`} theme={theme} /> : null}
+        {notice.workflowRunId ? <Mono label={`${t.notice_workflow} ${notice.workflowRunId.slice(0, 8)}`} theme={theme} /> : null}
+        {notice.requestId ? <Mono label={`${t.notice_steering_request} ${notice.requestId.slice(0, 8)}`} theme={theme} /> : null}
       </MetaRow>
 
       {notice.error ? <Body body={notice.error} theme={theme} t={t} tone="danger" /> : null}
@@ -371,6 +413,17 @@ export function PiNoticeCard({ notice, theme, t }: {
       {notice.recentFailures ? (
         <KeyValue label={t.notice_recent_failures} theme={theme} stacked>
           <Text selectable style={text(theme, "body")}>{notice.recentFailures}</Text>
+        </KeyValue>
+      ) : null}
+
+      {notice.evidence ? (
+        <KeyValue label={t.notice_watchdog_evidence} theme={theme} stacked>
+          <Text selectable style={text(theme, "body")}>{notice.evidence}</Text>
+        </KeyValue>
+      ) : null}
+      {notice.recommendedAction ? (
+        <KeyValue label={t.notice_watchdog_action} theme={theme} stacked>
+          <Text selectable style={text(theme, "body")}>{notice.recommendedAction}</Text>
         </KeyValue>
       ) : null}
 
@@ -392,8 +445,16 @@ export function PiNoticeCard({ notice, theme, t }: {
         />
       ))}
 
-      {notice.kind === "control" ? (
+      {notice.outputReference ? (
+        <Mono label={`${t.notice_child_output}: ${notice.outputReference}`} theme={theme} />
+      ) : null}
+
+      {/* ⚠️ 这三类都是投给**父 agent** 的，不是你的待办 —— 说明白，别让人以为该动手 */}
+      {notice.kind === "control" || notice.kind === "steering" ? (
         <Text style={text(theme, "meta", { muted: true })}>{t.notice_control_body}</Text>
+      ) : null}
+      {notice.kind === "watchdog" ? (
+        <Text style={text(theme, "meta", { muted: true })}>{t.notice_watchdog_body}</Text>
       ) : null}
 
       {notice.outputFile ? <Mono label={`${t.notice_output_file}: ${notice.outputFile}`} theme={theme} /> : null}

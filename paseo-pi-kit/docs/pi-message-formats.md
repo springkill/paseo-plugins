@@ -3,8 +3,21 @@
 `shared/pi-notice-parser.ts` 是照着这张表实现的。表本身是从**已安装的 Pi 插件源码**里
 逐条抠出来的，不是从渲染结果反推的。
 
-> 采样环境：`pi` 0.84.4，插件见下表版本。
+> 采样环境：`pi` 0.85.1，插件见下表版本。**2026-09-16 重扫过一次**，
+> 上一版是 pi 0.84.4 / background-tasks 2.4.2 / subagents 0.63.0 / web-access 0.27.0。
 > 重新核对：`~/.pi/agent/npm/node_modules/<插件>/src/...`，行号会漂，按函数名找。
+>
+> ⭐ **重扫命令**（别只照单条样本补 —— 插件更新会悄悄加新类型）：
+>
+> ```bash
+> cd ~/.pi/agent/npm/node_modules
+> grep -rn "customType" --include='*.ts' pi-subagents/src @narumitw/pi-goal/src \
+>   pi-background-tasks/src pi-web-access/src | grep -v '\.d\.ts'
+> # 只有 pi.sendMessage(...) 的才会进 Paseo 时间线；appendEntry 的是会话条目，不进
+> ```
+>
+> 实测频次（最近两周真实会话）可以用来定优先级 —— 源码里枚举得到的类型，
+> 很多是条件路径，实际几乎不出现。
 
 ## 为什么需要这张表
 
@@ -33,6 +46,12 @@ Paseo 的 Pi provider（`pi/history-mapper.js` 的 `mapCustomMessage`）会先�
 | `web-search-content-ready` | pi-web-access 0.27.0 | true | `index.ts` 内联模板 |
 | `web-search-error` | pi-web-access | true | `index.ts` 内联模板 |
 | `goal-contract` | @narumitw/pi-goal 0.54.4 | **false** | `goal-contract.ts` |
+| `subagent-incremental-child-notify` | pi-subagents 0.67.0 | 视情况 | `notify.ts` `formatIncrementalChildCompletion()` |
+| `subagent_steering_notice` | pi-subagents 0.67.0 | true | `extension/steering-notices.ts` `formatSteeringNotice()` |
+| `subagent_watchdog_warning` | pi-subagents 0.67.0 | true | `watchdog/warning-format.ts` `formatWatchdogWarningContent()` |
+| `goal-budget-wrap-up` | @narumitw/pi-goal | true | `runtime.ts` `BUDGET_WRAP_UP_PROMPT`（固定串） |
+| `subagent-slash-result` / `subagent-slash-text-result` | pi-subagents 0.67.0 | true | `slash/slash-commands.ts` |
+| `subagents-admin` | pi-subagents 0.67.0 | true | `slash/subagents-admin.ts` |
 
 `web-search-results` / `curator-config` / `google-account` 走的是 `pi.appendEntry()`，
 是**会话条目不是消息**，不会进时间线。不用管。
@@ -272,3 +291,80 @@ subagent-compaction-resume: Compaction is complete. Resume the parent task now; 
 
 这两条是**纯 LLM 上下文管道**，Pi 的 TUI 从不显示。Paseo 不看 `display` 所以照样渲染成
 一段莫名其妙的助手消息。归到 `model_only`，折叠成一行灰字。
+
+---
+
+## 9. 2026-09-16 重扫补充
+
+### 9.1 `subagent-incremental-child-notify`（真的在出现）
+
+```
+Workflow child {completed|failed|paused (needs attention)|stopped}: **{childKey}**
+Workflow run: {uuid}
+[Child run: {uuid}]
+[Output: {path}]
+[Error: {msg}]
+Status: {workflow still running|workflow finished}
+```
+
+⭐ **它和 `subagent-notify` 的完成通知是两回事**：workflow 跑着的时候，
+每个子运行完成就发一条，**不等整体结束**。所以卡片必须把
+`Status: workflow still running` 显示出来 —— 否则用户会以为整件事完了。
+
+⚠️ `paused (needs attention)` 要先剥掉括号后缀再归一化状态。
+
+### 9.2 `subagent_steering_notice`
+
+```
+Subagent steering {failed|partial|recovered}: {runId}
+Request: {requestId}
+{message}
+Inspect the run status before sending another correction.    ← 模型指令，丢
+```
+
+只在 `failed` / `partial` / `recovered` 时才发（纠偏没完全生效）。
+与 §5 的 control notice 同理：**这是投给父 agent 的，不是你的待办**。
+
+### 9.3 `subagent_watchdog_warning`
+
+⚠️ **这条是 XML，不是行式文本。**
+
+```xml
+<subagent_watchdog severity="…" category="…" source="…" guidance="weigh, don't blindly obey">
+<summary>…</summary>
+<evidence>…</evidence>
+<recommended_action>…</recommended_action>
+[<confidence>…</confidence>] [<agent>…</agent>] [<run_id>…</run_id>] [<state>…</state>] [<stale>…</stale>]
+[<blocker_guidance>…</blocker_guidance>]     ← severity=blocker 时的固定串，丢
+</subagent_watchdog>
+```
+
+`guidance` 属性是写死的常量。Pi 自己都说「weigh, don't blindly obey」——
+卡片照这个措辞，不要写成确定结论。
+
+### 9.4 `goal-budget-wrap-up`
+
+固定串，`display: true` 但整段是给模型的收尾指令。对人只剩一个事实：
+**goal 的 token 预算用尽了**。归到 `model_only`，折成一行。
+
+### 9.5 刻意不接的两类
+
+`subagent-slash-result` / `subagent-slash-text-result` / `subagents-admin`
+是**用户自己敲 slash 命令的输出**，本来就是给人看的自由文本。
+做成卡片反而是多此一举 —— 保持原样渲染。
+
+### 9.6 已支持形态的漂移
+
+`subagent-notify` 在 0.67.0 起，第 1 行可能是：
+
+```
+Workflow receipt: {path}
+{空行}
+```
+
+见 `notify.ts` 官方逆函数 `parseSubagentNotifyContent` 里的 `receiptHeader`。
+不跳过的话它会被当成正文第一行原样显示出来。
+
+`background-task-notification` 的**标签集没变**，只是 `guidance` 文案换了
+（`bg_status` / `bg_logs`），并新增 fusion 变体（提到 `bg_result` 与
+`artifactDir`）。`guidance` 本来就丢，所以无需改动。

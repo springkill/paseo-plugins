@@ -509,7 +509,15 @@ function parseSingleCompletion(text: string): Partial<PiNotice> | null {
   const header = (rows[0] ?? "").match(SINGLE_HEADER);
   if (!header) return null;
   const status = normalizeStatus(header[2]);
-  const entry = parseCompletionBody(rows.slice(2), header[3]!, header[4]);
+  // ⚠️ 0.67.0 起第 1 行可能是 `Workflow receipt: {path}`（后面跟一个空行）——
+  // 见 notify.ts 的官方逆函数 parseSubagentNotifyContent。不跳过的话它会被
+  // 当成正文第一行原样显示出来。
+  const hasReceipt = rows[1]?.startsWith("Workflow receipt: ") === true && rows[2] === "";
+  const receiptPath = hasReceipt ? rows[1]!.slice("Workflow receipt: ".length).trim() : undefined;
+  const entry = parseCompletionBody(rows.slice(hasReceipt ? 3 : 2), header[3]!, header[4]);
+  if (receiptPath) {
+    entry.workflow = { notes: [], ...(entry.workflow ?? {}), receiptPath };
+  }
   return {
     kind: "completion",
     variant: header[1] === "Background task" ? "background" : "foreground",
@@ -699,7 +707,110 @@ const MODEL_ONLY: Array<{ variant: string; match: (text: string) => boolean }> =
     variant: "compaction_resume",
     match: (text) => text.startsWith("Compaction is complete. Resume the parent task now;"),
   },
+  {
+    // @narumitw/pi-goal `runtime.ts` 的 BUDGET_WRAP_UP_PROMPT。
+    // ⚠️ 它 display:true（Pi 自己会显示），但整段是**给模型的收尾指令**
+    // （"Stop substantive work… Do not call goal_complete unless…"），
+    // 对人只剩一个事实：goal 的 token 预算用尽了。折成一行。
+    variant: "goal_budget",
+    match: (text) => text.startsWith("The active /goal token budget is exhausted."),
+  },
 ];
+
+// ── subagent-incremental-child-notify ───────────────────────────────
+// pi-subagents/src/runs/background/notify.ts `formatIncrementalChildCompletion()`
+//
+// workflow 跑着的时候，**每个子运行完成就发一条**，不等整个 workflow 结束。
+// 所以它和 `subagent-notify` 的合批完成是两回事：这条是增量的、单个子运行的。
+
+const CHILD_NOTIFY_HEADER =
+  /^Workflow child (completed|failed|paused \(needs attention\)|stopped): \*\*(.+?)\*\*$/;
+
+function parseIncrementalChildNotify(text: string): Partial<PiNotice> | null {
+  const rows = text.split("\n");
+  const header = (rows[0] ?? "").match(CHILD_NOTIFY_HEADER);
+  if (!header) return null;
+  // `paused (needs attention)` 要先剥掉括号再归一化
+  const status = normalizeStatus(header[1]!.replace(/ \(needs attention\)$/, ""));
+  const workflowStatus = field(text, "Status");
+  return {
+    kind: "child_notify",
+    ...(status ? { status } : {}),
+    childKey: header[2],
+    workflowRunId: real(field(text, "Workflow run")),
+    runId: real(field(text, "Child run")),
+    outputReference: real(field(text, "Output")),
+    error: field(text, "Error"),
+    // `Status: workflow still running | workflow finished`
+    workflowRunning: workflowStatus === undefined ? undefined : workflowStatus.includes("still running"),
+    body: "",
+  };
+}
+
+// ── subagent_steering_notice ────────────────────────────────────────
+// pi-subagents/src/extension/steering-notices.ts `formatSteeringNotice()`
+//
+// 只在 state 为 failed / partial / recovered 时才发 —— 也就是**纠偏没完全生效**。
+
+const STEERING_HEADER = /^Subagent steering (failed|partial|recovered): (.+)$/;
+/** ⚠️ 最后一行是给模型的操作指令，对人零信息量。 */
+const STEERING_GUIDANCE = "Inspect the run status before sending another correction.";
+
+function parseSteeringNotice(text: string): Partial<PiNotice> | null {
+  const rows = text.split("\n");
+  const header = (rows[0] ?? "").match(STEERING_HEADER);
+  if (!header) return null;
+  const body = rows
+    .slice(1)
+    .filter((row) => !/^Request:\s/.test(row) && row.trim() !== STEERING_GUIDANCE)
+    .join("\n")
+    .trim();
+  return {
+    kind: "steering",
+    variant: header[1],
+    status: header[1] === "recovered" ? "completed" : "attention",
+    runId: real(header[2]?.trim()),
+    requestId: real(field(text, "Request")),
+    body,
+  };
+}
+
+// ── subagent_watchdog_warning ───────────────────────────────────────
+// pi-subagents/src/watchdog/warning-format.ts `formatWatchdogWarningContent()`
+//
+// ⚠️ 这条是 XML，不是行式文本。属性里那句 `guidance="weigh, don't blindly obey"`
+// 是写死的常量，不解析。
+
+function attribute(text: string, name: string): string | undefined {
+  const match = text.match(new RegExp(`${name}="([^"]*)"`));
+  return match?.[1]?.trim() || undefined;
+}
+
+function parseWatchdogWarning(text: string): Partial<PiNotice> | null {
+  if (!text.startsWith("<subagent_watchdog ")) return null;
+  const severity = attribute(text, "severity");
+  return {
+    kind: "watchdog",
+    variant: severity,
+    // blocker 才算「需要关注」，其余是提示
+    status: severity === "blocker" ? "attention" : undefined,
+    severity,
+    category: attribute(text, "category"),
+    agent: tag(text, "agent"),
+    runId: tag(text, "run_id"),
+    signal: tag(text, "summary"),
+    evidence: tag(text, "evidence"),
+    recommendedAction: tag(text, "recommended_action"),
+    // <state> / <stale> / <confidence> 当事实角标
+    facts: [
+      tag(text, "state") ? `state ${tag(text, "state")}` : null,
+      tag(text, "confidence") ? `confidence ${tag(text, "confidence")}` : null,
+      tag(text, "stale") === "true" ? "stale" : null,
+    ].filter((fact): fact is string => fact !== null),
+    // blocker_guidance 是写死的模型指令，丢
+    body: "",
+  };
+}
 
 function parseModelOnly(text: string): Partial<PiNotice> | null {
   for (const { variant, match } of MODEL_ONLY) {
@@ -718,6 +829,9 @@ const PARSERS = [
   parseControlNotice,
   parseWaitSubscription,
   parseWebFetch,
+  parseIncrementalChildNotify,
+  parseSteeringNotice,
+  parseWatchdogWarning,
   parseModelOnly,
 ];
 

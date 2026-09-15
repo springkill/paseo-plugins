@@ -122,6 +122,32 @@ const CATALOG = {
   notice_web_search_error: { zh: "网页抓取失败", en: "Web fetch failed" },
   notice_model_only_goal: { zh: "Goal 契约（仅模型可见）", en: "Goal contract (model-only)" },
   notice_model_only_compaction: { zh: "压缩已完成（仅模型可见）", en: "Compaction done (model-only)" },
+  // ⚠️ 正文整段是给模型的收尾指令，对人只剩「预算用尽」这一个事实
+  notice_model_only_budget: { zh: "Goal 预算用尽", en: "Goal budget exhausted" },
+
+  // ── workflow 子运行增量完成（subagent-incremental-child-notify）──
+  notice_child_notify: (key: string) => ({ zh: `子运行 ${key}`, en: `Child run ${key}` }),
+  notice_workflow_running: { zh: "workflow 仍在跑", en: "Workflow still running" },
+  notice_workflow_finished: { zh: "workflow 已结束", en: "Workflow finished" },
+  notice_child_output: { zh: "输出", en: "Output" },
+
+  // ── 纠偏通知（subagent_steering_notice）──
+  // ⚠️ 只在纠偏没完全生效时才发，措辞别暗示需要你操作 —— 它同样是投给父 agent 的
+  notice_steering_failed: { zh: "Subagent 纠偏未生效", en: "Subagent steering failed" },
+  notice_steering_partial: { zh: "Subagent 纠偏部分生效", en: "Subagent steering partial" },
+  notice_steering_recovered: { zh: "Subagent 纠偏已恢复", en: "Subagent steering recovered" },
+  notice_steering_request: { zh: "请求", en: "Request" },
+
+  // ── 看门狗告警（subagent_watchdog_warning）──
+  notice_watchdog: { zh: "Subagent 看门狗告警", en: "Subagent watchdog warning" },
+  notice_watchdog_evidence: { zh: "依据", en: "Evidence" },
+  notice_watchdog_action: { zh: "建议动作", en: "Recommended action" },
+  // ⚠️ Pi 自己在正文里就写了 `guidance="weigh, don't blindly obey"`
+  notice_watchdog_body: {
+    zh: "看门狗的判断供参考，不必照单全收 —— 这条同样是投给父 agent 的。",
+    en: "Weigh the watchdog's call rather than obeying it; this goes to the parent agent.",
+  },
+  notice_receipt: { zh: "workflow 回执", en: "Workflow receipt" },
 
   notice_status_completed: { zh: "完成", en: "Completed" },
   notice_status_failed: { zh: "失败", en: "Failed" },

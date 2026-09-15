@@ -456,3 +456,112 @@ test("⭐ supervisor 三种形态都不许冒充「等你操作」", () => {
     assert.ok(!notice.body.includes("Reply with:"));
   }
 });
+
+// ── 2026-09-16 重扫：插件版本漂移带来的新形态 ──────────────────────
+//
+// 采样环境：pi 0.85.1 / pi-background-tasks 2.5.0 / pi-subagents 0.67.0 /
+// pi-web-access 0.29.0（9-04 那次是 0.84.4 / 2.4.2 / 0.63.0 / 0.27.0）。
+//
+// ⭐ 这批不是照单条样本补的 —— 是把 `pi.sendMessage` 的**全部发送点**从源码里
+// 重新枚举了一遍（见 docs/pi-message-formats.md 的重扫命令）。
+
+test("⭐ workflow 子运行增量完成：整段来自真实会话", () => {
+  // 原样取自 ~/.pi/agent/sessions（路径与 uuid 中性化过，结构逐字保留）
+  const notice = parsePiNoticeText([
+    "Workflow child completed: **design-p0-review**",
+    "Workflow run: 0d5e409a-f70d-4761-b3d2-1196e1e9a47e",
+    "Child run: b65a42b0-01e4-4855-b389-0ad90eaf7d30",
+    "Output: /srv/scratch/lab/plan/DESIGN-P0-REVIEW.md",
+    "Status: workflow still running",
+  ].join("\n"));
+
+  assert.equal(notice?.kind, "child_notify");
+  assert.equal(notice?.childKey, "design-p0-review");
+  assert.equal(notice?.status, "completed");
+  assert.equal(notice?.workflowRunId, "0d5e409a-f70d-4761-b3d2-1196e1e9a47e");
+  assert.equal(notice?.runId, "b65a42b0-01e4-4855-b389-0ad90eaf7d30");
+  assert.equal(notice?.outputReference, "/srv/scratch/lab/plan/DESIGN-P0-REVIEW.md");
+  // ⭐ 这一条最要紧：子运行完了不代表 workflow 完了，别让人以为整件事结束了
+  assert.equal(notice?.workflowRunning, true);
+});
+
+test("⭐ 子运行的 paused 带括号后缀，要先剥再归一化", () => {
+  const notice = parsePiNoticeText([
+    "Workflow child paused (needs attention): **reviewer**",
+    "Workflow run: 0d5e409a-f70d-4761-b3d2-1196e1e9a47e",
+    "Status: workflow finished",
+  ].join("\n"));
+  assert.equal(notice?.kind, "child_notify");
+  assert.equal(notice?.status, "paused");
+  assert.equal(notice?.workflowRunning, false);
+});
+
+test("⭐ 纠偏通知：给模型抄的那句不进卡片", () => {
+  const notice = parsePiNoticeText([
+    "Subagent steering partial: 579bf958-0941-4988-8780-777343803 7e2",
+    "Request: 8f004228-f904-631a-3466-f1dd845eb986",
+    "只有前两条纠偏被采纳，第三条被忽略。",
+    "Inspect the run status before sending another correction.",
+  ].join("\n"));
+
+  assert.equal(notice?.kind, "steering");
+  assert.equal(notice?.variant, "partial");
+  assert.equal(notice?.status, "attention");
+  assert.match(notice?.body ?? "", /只有前两条纠偏被采纳/);
+  // Pi 写死的模型指令，对人零信息量
+  assert.doesNotMatch(notice?.body ?? "", /Inspect the run status/);
+  // Request 已经进了结构化字段，不该在正文里重复
+  assert.doesNotMatch(notice?.body ?? "", /^Request:/m);
+});
+
+test("⭐ 看门狗告警是 XML，不是行式文本", () => {
+  const notice = parsePiNoticeText([
+    '<subagent_watchdog severity="blocker" category="stalled" source="turn-delta" guidance="weigh, don\'t blindly obey">',
+    "<summary>子任务 12 轮没有产出</summary>",
+    "<evidence>最近 12 轮只有 read，没有写入或提交</evidence>",
+    "<recommended_action>检查它是不是在等一个不会来的输入</recommended_action>",
+    "<confidence>high</confidence>",
+    "<agent>worker</agent>",
+    "<run_id>47855cae-1e44-4c26-8abc-000000000001</run_id>",
+    "<state>running</state>",
+    "<blocker_guidance>If this warning changes the outcome, produce a new self-contained final answer after addressing it.</blocker_guidance>",
+    "</subagent_watchdog>",
+  ].join("\n"));
+
+  assert.equal(notice?.kind, "watchdog");
+  assert.equal(notice?.severity, "blocker");
+  assert.equal(notice?.category, "stalled");
+  assert.equal(notice?.agent, "worker");
+  assert.equal(notice?.signal, "子任务 12 轮没有产出");
+  assert.match(notice?.evidence ?? "", /只有 read/);
+  assert.match(notice?.recommendedAction ?? "", /不会来的输入/);
+  assert.deepEqual(notice?.facts, ["state running", "confidence high"]);
+  // blocker_guidance 是写死的模型指令
+  assert.doesNotMatch(notice?.body ?? "", /self-contained final answer/);
+});
+
+test("⭐ goal 预算用尽：整段是给模型的收尾指令，折成一行", () => {
+  const notice = parsePiNoticeText(
+    "The active /goal token budget is exhausted. Stop substantive work and do not call substantive tools." +
+      " Summarize progress, verified results, remaining work, and blockers concisely.",
+  );
+  assert.equal(notice?.kind, "model_only");
+  assert.equal(notice?.variant, "goal_budget");
+});
+
+test("⭐ 0.67.0 漂移：Workflow receipt 行不能混进正文", () => {
+  // notify.ts 的官方逆函数 parseSubagentNotifyContent 在第 1 行认这个，
+  // 后面跟一个空行。不跳过的话它会被当成正文第一行原样显示。
+  const notice = parsePiNoticeText([
+    "Background task completed: **workflow**",
+    "Workflow receipt: /home/test/.pi/receipts/abc.json",
+    "",
+    "PLANNER_OK",
+  ].join("\n"));
+
+  assert.equal(notice?.kind, "completion");
+  const entry = notice?.entries[0];
+  assert.equal(entry?.workflow?.receiptPath, "/home/test/.pi/receipts/abc.json");
+  assert.equal(entry?.summary.trim(), "PLANNER_OK");
+  assert.doesNotMatch(entry?.summary ?? "", /Workflow receipt/);
+});
