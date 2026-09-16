@@ -34,8 +34,13 @@ Pi 用结构化的 `custom_message` 发后台任务、workflow、subagent 督导
 `format*()` 函数逆向写的。workflow 完成通知**按子任务展开**，而不是把截断的
 JSON 原样倒出来。
 
-⚠️ Pi 插件更新会悄悄加新消息类型。格式表里写了**重扫命令** —— 按样本一条条补
-是补不完的。
+另有四种已知类型**有意不做卡片** —— 正文是自由散文，没有结构可还原。
+它们照样记在格式表里，免得下次重扫又把它们当成「新发现」。
+
+⚠️ Pi 插件更新会悄悄加新消息类型，也会**改变已有类型的投递方式** ——
+web-access 0.29.0 把三个类型从 `appendEntry`（不进时间线）改成了
+`sendMessage`（进）。格式表里写了**重扫命令**；每次要对**每个已知类型**
+重新确认投递方式，不能只找新增的。按样本一条条补是补不完的。
 
 ⚠️ 发给**父 agent** 的那些（supervisor 请求、control notice）折叠成一行，绝不做成
 需要你操作的样子 —— 它们的 `Reply with: …` 是只有模型能发的工具调用。真正需要你
@@ -70,7 +75,7 @@ composer pill 的仪表图标在额度将尽或 provider 报错时变红；点�
 paseo plugin install https://github.com/springkill/paseo-plugins:paseo-pi-kit
 ```
 
-钉版本用 `--ref paseo-pi-kit-v0.8.3`，见[发版说明](../README.zh-CN.md#发版与版本号)。
+钉版本用 `--ref paseo-pi-kit-v0.8.4`，见[发版说明](../README.zh-CN.md#发版与版本号)。
 
 ⚠️ **需要 Paseo 0.8 及以上**，daemon 和 **app 都要**。客户端 bundle 是由 app
 求值的 —— 旧版 app 即使连着 0.8 的 daemon 也跑不了，界面一个都出不来。

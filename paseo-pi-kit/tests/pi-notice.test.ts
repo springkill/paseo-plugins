@@ -143,6 +143,47 @@ test("后台任务：非零退出码与错误要如实带出", () => {
   assert.equal(notice.error, "boom");
 });
 
+test("后台任务：killed 不能被兜成 completed", () => {
+  // pi-background-tasks 的 TASK_STATUS_VALUES 是 running|completed|failed|killed。
+  // 曾经 normalizeStatus 认不出 `killed`，被 `?? "completed"` 兜底，
+  // 超时/超输出上限被杀的任务在卡片上显示成绿色「已完成」。
+  const killed = BACKGROUND_TASK
+    .replace("<status>completed</status>", "<status>killed</status>")
+    .replace("<exit-code>0</exit-code>", "<exit-code>null</exit-code>");
+  const notice = parsePiNoticeText(killed)!;
+  assert.equal(notice.status, "stopped", "killed 要落到 stopped（warning 色），不是 completed");
+  assert.equal(notice.exitCode, undefined, "字面的 `null` 不是退出码，别显示成 0");
+});
+
+test("后台任务：认不出的状态宁可不显示，也不许猜成 completed", () => {
+  const unknown = BACKGROUND_TASK.replace("<status>completed</status>", "<status>quantum</status>");
+  assert.equal(parsePiNoticeText(unknown)!.status, undefined);
+});
+
+test("XML 实体要还原，且 &amp; 必须最后解", () => {
+  // 生产方（background-tasks core/common.ts escapeXml、subagents warning-format.ts
+  // escapeXmlText）都是先 & 后 < >，反解顺序反了就会把字面的 `&lt;` 吃成 `<`。
+  const escaped = BACKGROUND_TASK
+    .replace("<task-name>Run unit tests</task-name>", "<task-name>a &amp; b &lt;c&gt;</task-name>")
+    .replace(
+      "<output-file>.pi/tasks/session-000000-000000/b48bfc0af.output</output-file>",
+      "<output-file>/srv/out/r&amp;d.log</output-file>",
+    );
+  const notice = parsePiNoticeText(escaped)!;
+  assert.equal(notice.taskName, "a & b <c>");
+  assert.equal(notice.outputFile, "/srv/out/r&d.log");
+
+  const literal = BACKGROUND_TASK.replace(
+    "<task-name>Run unit tests</task-name>",
+    "<task-name>&amp;lt;not a tag&amp;gt;</task-name>",
+  );
+  assert.equal(
+    parsePiNoticeText(literal)!.taskName,
+    "&lt;not a tag&gt;",
+    "名字里本来就是这五个字面字符时，只许解一层",
+  );
+});
+
 // ── workflow / 完成通知 ─────────────────────────────────────────────
 
 test("workflow：Child outputs 拆成结构化子项", () => {

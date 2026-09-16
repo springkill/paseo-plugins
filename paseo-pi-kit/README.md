@@ -38,8 +38,15 @@ each one reverse-engineered from the `format*()` function that produces it.
 Workflow completions are expanded **per child run** instead of dumping the
 truncated JSON.
 
-⚠️ Pi plugin updates quietly add new message types. The format reference carries
-a **re-scan command** — chasing one pasted sample at a time never converges.
+Four further types are known and **deliberately left as plain text** — their
+bodies are free-form prose with no structure to recover. They are listed in the
+reference so the next re-scan does not rediscover them as "new".
+
+⚠️ Pi plugin updates quietly add new message types, and they also **change how an
+existing type is delivered** — three web-access types moved from `appendEntry`
+(never reaches the timeline) to `sendMessage` (does) in 0.29.0. The format
+reference carries a **re-scan command**; re-confirm delivery for every known type,
+not just look for new ones. Chasing one pasted sample at a time never converges.
 
 ⚠️ Notices addressed to the *parent agent* (supervisor requests, control notices)
 are collapsed to one line and never styled as something you must act on — their
@@ -77,7 +84,7 @@ plugin can work around. See [`docs/card-design.md`](docs/card-design.md) §5 / �
 paseo plugin install https://github.com/springkill/paseo-plugins:paseo-pi-kit
 ```
 
-Pin a version with `--ref paseo-pi-kit-v0.8.3`. See
+Pin a version with `--ref paseo-pi-kit-v0.8.4`. See
 [versioning](../README.md#versioning-and-releases).
 
 ⚠️ **Requires Paseo 0.8 or newer — both the daemon and the app.** The client

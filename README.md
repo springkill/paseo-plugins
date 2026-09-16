@@ -23,7 +23,7 @@ a repository.
 Pin a version, or follow updates:
 
 ```bash
-paseo plugin install https://github.com/springkill/paseo-plugins:paseo-pi-kit --ref paseo-pi-kit-v0.8.3
+paseo plugin install https://github.com/springkill/paseo-plugins:paseo-pi-kit --ref paseo-pi-kit-v0.8.4
 paseo plugin status              # anything newer?
 paseo plugin update --all
 ```
@@ -48,7 +48,7 @@ pin `--ref` to a commit you have reviewed yourself.
 **Every plugin is versioned on its own.** Tags look like:
 
 ```
-<plugin-directory>-v<semver>        e.g.  paseo-pi-kit-v0.8.3
+<plugin-directory>-v<semver>        e.g.  paseo-pi-kit-v0.8.4
 ```
 
 Pushing such a tag runs the checks for *that plugin only*, then publishes a

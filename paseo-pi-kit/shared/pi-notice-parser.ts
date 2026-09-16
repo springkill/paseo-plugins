@@ -69,10 +69,30 @@ function record(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
+/**
+ * 还原 Pi 的 XML 转义。
+ *
+ * 生产方一律是 `&` → `&amp;` **先**、再 `<` `>`（属性再多一步 `"`），
+ * 所以反解必须**倒着来，`&amp;` 放最后**。顺序反了的话，
+ * 名字里真有 `&lt;` 这五个字面字符的任务会被解成 `<`。
+ * 参见 pi-background-tasks `core/common.ts escapeXml()`、
+ * pi-subagents `watchdog/warning-format.ts escapeXmlText()/escapeXmlAttribute()`。
+ *
+ * 只认这四个实体 —— 生产方只产这四个，多认就会把字面文本吃掉。
+ */
+function decodeXml(value: string): string {
+  return value
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
+}
+
 /** `<tag>值</tag>`。不依赖换行 —— 这段文本在有些渲染路径上会被压成一行。 */
 function tag(text: string, name: string): string | undefined {
   const match = text.match(new RegExp(`<${name}>([\\s\\S]*?)</${name}>`));
-  return match?.[1]?.trim() || undefined;
+  const raw = match?.[1]?.trim();
+  return raw ? decodeXml(raw) : undefined;
 }
 
 /** 行首 `Label: 值`。 */
@@ -115,6 +135,13 @@ function normalizeStatus(value: string | undefined): PiNotice["status"] {
     // ⭐ Pi 的第四种终态，别漏（notify.ts 的 status 联合类型里有）
     case "paused":
       return "paused";
+    // ⭐ `killed` 是 pi-background-tasks 的真值之一（TASK_STATUS_VALUES =
+    // running|completed|failed|killed）。**`stopped` 根本不是它的取值** ——
+    // 早先照着注释里那个 `{completed|failed|stopped|…}` 写，`killed` 落不进任何
+    // 分支，被下面的 `?? "completed"` 兜成了「已完成」，超时被杀的任务显示成绿色成功。
+    // 消息里不带 KillKind（user|timeout|output_cap|shutdown），只能统一按「已停止」+
+    // warning 色渲染，真正的原因在 <error> 那行。
+    case "killed":
     case "stopped":
     case "canceled":
     case "cancelled":
@@ -142,7 +169,9 @@ function parseBackgroundTask(text: string): Partial<PiNotice> | null {
     kind: "background_task",
     taskId: tag(text, "task-id"),
     taskName: tag(text, "task-name"),
-    status: normalizeStatus(tag(text, "status")) ?? "completed",
+    // ⚠️ 不要再兜底成 "completed"。认不出来就不显示状态 ——
+    // 猜错方向的代价是把失败显示成成功，宁可少一个状态徽标。
+    status: normalizeStatus(tag(text, "status")),
     exitCode: toInt(tag(text, "exit-code")),
     error: tag(text, "error"),
     outputFile: tag(text, "output-file"),
@@ -782,8 +811,10 @@ function parseSteeringNotice(text: string): Partial<PiNotice> | null {
 // 是写死的常量，不解析。
 
 function attribute(text: string, name: string): string | undefined {
+  // 属性值里的 `"` 被转义成 `&quot;`，所以 `[^"]*` 不会被值里的引号截断。
   const match = text.match(new RegExp(`${name}="([^"]*)"`));
-  return match?.[1]?.trim() || undefined;
+  const raw = match?.[1]?.trim();
+  return raw ? decodeXml(raw) : undefined;
 }
 
 function parseWatchdogWarning(text: string): Partial<PiNotice> | null {

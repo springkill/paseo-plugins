@@ -21,7 +21,7 @@ paseo plugin install https://github.com/springkill/paseo-plugins:paseo-pi-kit
 钉版本、追更新：
 
 ```bash
-paseo plugin install https://github.com/springkill/paseo-plugins:paseo-pi-kit --ref paseo-pi-kit-v0.8.3
+paseo plugin install https://github.com/springkill/paseo-plugins:paseo-pi-kit --ref paseo-pi-kit-v0.8.4
 paseo plugin status              # 有没有新版
 paseo plugin update --all
 ```
@@ -43,7 +43,7 @@ Paseo 的插件是**受信任、不沙箱**的：
 **每个插件各自发版。** tag 形如：
 
 ```
-<插件目录>-v<semver>        例如  paseo-pi-kit-v0.8.3
+<插件目录>-v<semver>        例如  paseo-pi-kit-v0.8.4
 ```
 
 推这样一个 tag，只跑**那一个插件**的检查，然后发一个 GitHub Release，仓库里别的

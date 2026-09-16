@@ -25,6 +25,22 @@ export const NOTICE_FIXTURES: Array<{ name: string; content: string }> = [
 </background-task-notification>`,
   },
   {
+    // ⭐ 被杀死的任务：`killed` 是 TASK_STATUS_VALUES 里的真值，
+    // `exit-code` 此时是字面的 `null`（registry 只判 `=== undefined` 跳过该行），
+    // 名字/错误/路径都过了 escapeXml。三样一起，专治「兜底成 completed」的回归。
+    name: "background-task-killed",
+    content: `<background-task-notification>
+  <task-id>bt_c41f0e77</task-id>
+  <task-name>sync &amp; verify &lt;batch 3&gt;</task-name>
+  <status>killed</status>
+  <exit-code>null</exit-code>
+  <error>Killed after exceeding the 900s timeout</error>
+  <output-file>/srv/out/sync &amp; verify.log</output-file>
+  <summary>Background task "sync &amp; verify &lt;batch 3&gt;" killed</summary>
+  <guidance>Terminal state and output metadata are durable. Do not call bg_status to reconfirm; use bg_logs only if output is needed.</guidance>
+</background-task-notification>`,
+  },
+  {
     name: "completion-with-child-outputs",
     content: `Background task completed: **workflow**
 

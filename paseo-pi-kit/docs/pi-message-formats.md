@@ -3,18 +3,26 @@
 `shared/pi-notice-parser.ts` 是照着这张表实现的。表本身是从**已安装的 Pi 插件源码**里
 逐条抠出来的，不是从渲染结果反推的。
 
-> 采样环境：`pi` 0.85.1，插件见下表版本。**2026-09-16 重扫过一次**，
-> 上一版是 pi 0.84.4 / background-tasks 2.4.2 / subagents 0.63.0 / web-access 0.27.0。
-> 重新核对：`~/.pi/agent/npm/node_modules/<插件>/src/...`，行号会漂，按函数名找。
+> 采样环境：`pi` 0.85.1 / background-tasks **2.5.0** / subagents 0.67.0 /
+> web-access **0.29.0** / pi-goal 0.54.4。**2026-09-16 重扫过两次**（第二次见 §10）。
+> 重新核对：`~/.pi/agent/npm/node_modules/<插件>/`，行号会漂，按函数名找。
 >
 > ⭐ **重扫命令**（别只照单条样本补 —— 插件更新会悄悄加新类型）：
 >
 > ```bash
 > cd ~/.pi/agent/npm/node_modules
-> grep -rn "customType" --include='*.ts' pi-subagents/src @narumitw/pi-goal/src \
->   pi-background-tasks/src pi-web-access/src | grep -v '\.d\.ts'
+> grep -rn "customType" --include='*.ts' \
+>   pi-subagents @narumitw/pi-goal pi-background-tasks pi-web-access \
+>   | grep -v '\.d\.ts' | grep -v node_modules
 > # 只有 pi.sendMessage(...) 的才会进 Paseo 时间线；appendEntry 的是会话条目，不进
+> # —— 但**同一个 customType 会在版本之间从 appendEntry 改成 sendMessage**，见 §10.2
 > ```
+>
+> ⚠️ **别把 `/src` 写进路径。** 上一版命令写的是 `pi-web-access/src`，
+> 而 web-access 0.29.0 把源码放在**包根**，没有 `src/` —— grep 匹配 0 个文件，
+> 静默返回空，于是「web-access 没有新类型」这个结论完全是假的。
+> 扫描器扫了个不存在的目录却不报错，和之前那两条失效的测试守卫是同一类事故：
+> **命令跑通 ≠ 命令扫到了东西。** 加一条 `ls` 或看匹配数再下结论。
 >
 > 实测频次（最近两周真实会话）可以用来定优先级 —— 源码里枚举得到的类型，
 > 很多是条件路径，实际几乎不出现。
@@ -37,13 +45,13 @@ Paseo 的 Pi provider（`pi/history-mapper.js` 的 `mapCustomMessage`）会先�
 
 | customType | 来源插件 | display | 构造函数 |
 |---|---|---|---|
-| `background-task-notification` | pi-background-tasks 2.4.2 | true | `registry.ts` `notifyCompletion()` |
+| `background-task-notification` | pi-background-tasks 2.5.0 | true | `registry.ts` `notifyCompletion()` |
 | `subagent-notify` | pi-subagents 0.63.0 | 视情况 | `notify.ts` `formatSingleCompletion()` / `formatGroupedCompletion()` |
 | `subagent_supervisor_request` | pi-subagents | true | `native-supervisor-channel.ts` `formatChildMessage()` |
 | `subagent_control_notice` | pi-subagents | true | `subagent-control.ts` `formatControlNoticeMessage()` |
 | `subagent-wait-subscription` | pi-subagents | true | `wait-subscriptions.ts` `settle()` |
 | `subagent-compaction-resume` | pi-subagents | **false** | `extension/index.ts`，固定串 |
-| `web-search-content-ready` | pi-web-access 0.27.0 | true | `index.ts` 内联模板 |
+| `web-search-content-ready` | pi-web-access 0.29.0 | true | `index.ts` 内联模板 |
 | `web-search-error` | pi-web-access | true | `index.ts` 内联模板 |
 | `goal-contract` | @narumitw/pi-goal 0.54.4 | **false** | `goal-contract.ts` |
 | `subagent-incremental-child-notify` | pi-subagents 0.67.0 | 视情况 | `notify.ts` `formatIncrementalChildCompletion()` |
@@ -52,9 +60,14 @@ Paseo 的 Pi provider（`pi/history-mapper.js` 的 `mapCustomMessage`）会先�
 | `goal-budget-wrap-up` | @narumitw/pi-goal | true | `runtime.ts` `BUDGET_WRAP_UP_PROMPT`（固定串） |
 | `subagent-slash-result` / `subagent-slash-text-result` | pi-subagents 0.67.0 | true | `slash/slash-commands.ts` |
 | `subagents-admin` | pi-subagents 0.67.0 | true | `slash/subagents-admin.ts` |
+| `subagent_watchdog_clarification` | pi-subagents 0.67.0 | true | `watchdog/register-main.ts` `displayClarification` |
+| `web-search-results` | pi-web-access 0.29.0 | true | `index.ts` `buildSearchReturn()` |
+| `curator-config` / `google-account` | pi-web-access 0.29.0 | true | `index.ts` 斜杠命令回执 |
 
-`web-search-results` / `curator-config` / `google-account` 走的是 `pi.appendEntry()`，
-是**会话条目不是消息**，不会进时间线。不用管。
+⚠️ **最后三行以前不在这张表里**，理由是「走 `pi.appendEntry()`，是会话条目不是消息」。
+**0.29.0 起它们改成了 `pi.sendMessage(...)`**，会进时间线。见 §10.2 ——
+「这个类型不进时间线」是**会随版本翻转的结论**，每次重扫都要重新确认一遍，
+不能只扫 `customType` 的新增。
 
 `@juicesharp/rpiv-todo` 与 `@juicesharp/rpiv-ask-user-question` 不发 `custom_message`
 （它们走 Pi 的 overlay/view 机制），也不用管。
@@ -67,8 +80,8 @@ Paseo 的 Pi provider（`pi/history-mapper.js` 的 `mapCustomMessage`）会先�
 <background-task-notification>
   <task-id>{id}</task-id>
   <task-name>{name}</task-name>
-  <status>{completed|failed|stopped|…}</status>
-  <exit-code>{n}</exit-code>        ← task.exitCode === undefined 时整行不出现
+  <status>{running|completed|failed|killed}</status>
+  <exit-code>{n|null}</exit-code>   ← task.exitCode === undefined 时整行不出现
   <error>{msg}</error>              ← 无错误时整行不出现
   <output-file>{path}</output-file>
   <summary>Background task "{name}" {status}</summary>
@@ -78,6 +91,34 @@ Paseo 的 Pi provider（`pi/history-mapper.js` 的 `mapCustomMessage`）会先�
 
 `guidance` 是给模型的操作指令（"不要 poll"），对人没有信息量 → 丢。
 `summary` 是 `task-name` + `status` 的复述 → 也可以丢，卡片自己就有这两项。
+
+### 1.1 三个把人坑到的细节
+
+**⭐ `status` 的取值是 `running|completed|failed|killed`，没有 `stopped`。**
+真源是 `core/common.ts` 的 `TASK_STATUS_VALUES`，别照这段注释里以前写的
+`{completed|failed|stopped|…}` 猜。本插件曾经就是这么写的 —— `killed` 落不进
+`normalizeStatus` 任何分支，被 `?? "completed"` 兜底，**超时被杀的任务在卡片上
+显示成绿色「已完成」**。现在 `killed` → `stopped`（warning 色），
+且**认不出的状态一律不显示**，不再兜底。
+
+消息里**不带 `KillKind`**（`user | timeout | output_cap | shutdown` 只活在进程内），
+所以「为什么被杀」只能从 `<error>` 那行读。
+
+**⭐ `exit-code` 可以是字面的 `null`。**
+`notifyCompletion()` 只判 `task.exitCode === undefined` 决定要不要输出这一行，
+而 `finalizeTask` 写的是 `task.exitCode = exitCode`，类型是 `number | null`
+（被信号杀死时为 `null`）→ 于是真的会发出 `<exit-code>null</exit-code>`。
+解析时必须按整数正则过滤，**别让它显示成 `0`**。
+
+**⭐ `task-name` / `error` / `output-file` / `summary` / `guidance` 都过了 `escapeXml()`。**
+`core/common.ts`：只替换 `&` `<` `>` 三个（**不含引号**，所以 `<summary>` 里
+`JSON.stringify(taskName)` 带出来的双引号是字面的）。反解必须**倒着来、`&amp;` 放最后**，
+否则名字里本来就有 `&lt;` 这五个字面字符的任务会被解错。
+pi-subagents 的 `watchdog/warning-format.ts` 同样转义，属性值还多一个 `&quot;`。
+
+`guidance` 在 2.5.0 有三个分支（普通 / fusion 成功 / fusion 失败，后两个带
+`artifactDir` 路径）。我们丢弃 `guidance`，所以不受影响 —— 记在这里是为了说明
+**它不是固定串**，将来若要展示得按分支处理。
 
 ## 2. `subagent-notify` —— 单条（`formatSingleCompletion`）
 
@@ -368,3 +409,46 @@ Workflow receipt: {path}
 `background-task-notification` 的**标签集没变**，只是 `guidance` 文案换了
 （`bg_status` / `bg_logs`），并新增 fusion 变体（提到 `bg_result` 与
 `artifactDir`）。`guidance` 本来就丢，所以无需改动。
+
+---
+
+## 10. 2026-09-16 第二次重扫（background-tasks 2.5.0 / web-access 0.29.0）
+
+起因是一条 `status=failed` 的后台任务通知。查下来那条本身解析正常，
+但顺着生产方源码重扫，发现了下面这些。
+
+### 10.1 `killed` 被兜底成「已完成」（已修）
+
+见 §1.1。这是本表里**危害最大的一类错误**：不是少显示了什么，而是
+**把失败显示成了成功**。根因是这份文档上一版把 `status` 的取值写成
+`{completed|failed|stopped|…}`，那个 `…` 掩盖了「我没去看真源」。
+
+教训：**枚举类字段一律抄常量名和它的定义位置**，别写省略号。
+现在 §1 写的是 `TASK_STATUS_VALUES`，下次重扫能直接去核对。
+
+### 10.2 `appendEntry` → `sendMessage` 会在版本之间翻转
+
+`web-search-results` / `curator-config` / `google-account` 三个类型，
+上一版记的是「走 `pi.appendEntry()`，不进时间线，不用管」。
+**0.29.0 里它们是 `pi.sendMessage(...)`**，会进时间线。
+
+所以重扫不能只问「有没有新的 `customType`」，还要对**每一个已知类型**
+重新确认投递方式。上一版的结论在当时是对的，是被上游改掉的。
+
+三条的正文都是散文（`buildSearchReturn()` 产出的是搜索摘要 markdown，
+另外两条是单行命令回执），没有结构可解 —— **有意不做卡片**，
+让它们按普通助手消息渲染即可。记在表里是为了下次别再当成「不存在」。
+
+### 10.3 `subagent_watchdog_clarification`（新增，有意不接）
+
+`watchdog/register-main.ts` 的 `displayClarification`，
+`deliverAs: "steer"`。正文是模型生成的自由文本，无结构 → 同样按普通消息渲染。
+
+### 10.4 重扫命令扫了个不存在的目录
+
+见文件开头那条 ⚠️。`pi-web-access/src` 在 0.29.0 已经不存在，
+grep 匹配 0 个文件、退出码 0、没有任何提示，于是「web-access 无变化」
+是个**凭空得出的结论**。这和之前两次「测试守卫因为重构而不再匹配任何东西、
+却一直是绿的」是同一类事故。
+
+**判据：扫描类命令要先确认它扫到了东西。** 命令跑通不等于命令有效。
